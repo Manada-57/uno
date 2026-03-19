@@ -1291,6 +1291,14 @@ const CGRAD={
 };
 const CHEX={red:'#E8372A',blue:'#1E7FD8',green:'#26B152',yellow:'#F7C520'};
 
+/* ═══════════════════════════════════════════════
+   GAME ENGINE — Firebase Synced
+   Every action writes to Firebase → all players
+   listen and re-render from the shared state.
+   Player index = their position in room.players[].
+   "myIndex" = this browser's player index.
+═══════════════════════════════════════════════ */
+
 function buildDeck(){
   const d=[];
   COLORS.forEach(c=>{
@@ -1308,66 +1316,60 @@ function cardPts(card){
   return parseInt(card.v)||0;
 }
 
-async function startGame(){
-  if(room.players.length<2){showToast('Need at least 2 players!');return;}
-  joinTimers.forEach(clearTimeout);joinTimers=[];
+// My index in room.players — determines whose hand I see at the bottom
+let myIndex = 0;
+let gameListener = null;
 
-  const n=room.players.length;
-  const deck=shuffle(buildDeck());
-  const hands=Array.from({length:n},()=>[]);
-  for(let i=0;i<7;i++) hands.forEach((_,p)=>hands[p].push(deck.pop()));
-
-  let first;
-  do{first=deck.pop();}while(first.c==='wild');
-
-  // Reset scores
-  room.players.forEach(p=>p.score=0);
-
-  game={
-    deck, discard:[first], hands,
-    currentPlayer:0, dir:1,
-    activeColor:first.c, activeValue:first.v,
-    drawnThisTurn:false, pendingWild:false, gameOver:false,
-    cpuBusy:false, unoVulnerable:-1, unoCalledBy:-1,
-    cpuAutoUno:{}, drawStack:0, drawType:null, drawnPenalty:false,
+// ── WRITE game state to Firebase ──
+async function pushGameState(){
+  if(!room||!game) return;
+  // Store hands as objects (Firebase doesn't store arrays with gaps)
+  const payload = {
+    ...game,
+    hands: game.hands.map(h=>({...h})), // keep as arrays — Firebase handles them
+    cpuBusy: false, // never persist cpuBusy — each client manages CPU locally
   };
-
-  // Apply first card
-  if(first.v==='reverse') game.dir=-1;
-  else if(first.v==='skip'){game.currentPlayer=1;}
-  else if(first.v==='draw2'){drawCards(0,2);game.currentPlayer=1;}
-
-  // Mark room as 'playing' in Firebase so lobby shows it correctly
-  if(roomListener&&room){ db.ref('rooms/'+room.id).off('value',roomListener); roomListener=null; }
-  await updateRoom(room.id, {status:'playing'});
-  goTo('gameScreen');
-  document.getElementById('chatBubble').style.display='flex';
-  addChatMsg(null,'Game started! Good luck! 🎮');
-  renderGame();
-  if(game.currentPlayer!==0) scheduleCPU();
-  else setStatus("Your turn! Play a card or draw.");
+  await db.ref('games/'+room.id).set(payload);
 }
 
-function startGameAsGuest(roomData){
-  // Guest joins a game that the host already started
-  // For now guests play against bots — full game sync is a future enhancement
-  showToast('Host started the game!');
-  startGame();
+// ── LISTEN for game state changes from Firebase ──
+function startGameListener(){
+  if(gameListener) db.ref('games/'+room.id).off('value', gameListener);
+  gameListener = db.ref('games/'+room.id).on('value', snap=>{
+    if(!snap.exists()) return;
+    const state = snap.val();
+    // Normalize hands (Firebase may turn arrays to objects)
+    if(state.hands){
+      state.hands = Object.values(state.hands).map(h=>Array.isArray(h)?h:Object.values(h));
+    }
+    if(state.discard && !Array.isArray(state.discard)) state.discard=Object.values(state.discard);
+    if(state.deck && !Array.isArray(state.deck)) state.deck=Object.values(state.deck);
+    game = {...state, cpuBusy:false};
+    renderGame();
+    // Only the host runs CPU turns to avoid double-execution
+    const imHost = room.players[0]&&room.players[0].name===me.name;
+    if(imHost && game.currentPlayer!==myIndex && !game.gameOver){
+      const p=room.players[game.currentPlayer];
+      if(p&&p.isBot) scheduleCPU();
+    }
+    // It's my turn
+    if(game.currentPlayer===myIndex && !game.gameOver){
+      setStatus("Your turn! Play a card or draw.");
+    }
+    if(game.gameOver){
+      // Find winner
+      const winner=game.hands.findIndex(h=>h.length===0);
+      if(winner>=0) showWin(winner, game.lastWinPts||0);
+    }
+  });
 }
 
-function playAgain(){
-  document.getElementById('winScreen').classList.remove('show');
-  startGame();
-}
-async function backToLobbyFromWin(){
-  document.getElementById('winScreen').classList.remove('show');
-  if(room){ await deleteRoom(room.id); }
-  game=null; room=null;
-  refreshRooms();
-  goTo('lobbyScreen');
+function stopGameListener(){
+  if(gameListener&&room){ db.ref('games/'+room.id).off('value',gameListener); gameListener=null; }
 }
 
-/* ── DRAW ── */
+function cardPts2(card){ return cardPts(card); }
+
 function drawCards(who,n){
   for(let i=0;i<n;i++){
     if(game.deck.length<2) replenishDeck();
@@ -1381,34 +1383,99 @@ function replenishDeck(){
   addChatMsg(null,'Deck reshuffled! ♻️');
 }
 
-/* ── PLAYABILITY ── */
-// DRAW PENALTY RULE:
-//   Hit by +2? → You can immediately play any +2 (any color) BEFORE drawing to pass it forward.
-//   Hit by +4? → You can immediately play any +4 (any color) BEFORE drawing to pass it forward.
-//   If you have NO matching draw card → you MUST click Draw and take all cards.
-//   After drawing, you can play any same-color card OR another matching draw card.
+// ── PLAYABILITY ──
 function canPlay(card){
   if(game.drawStack>0 && !game.drawnPenalty){
-    // Under penalty, NOT yet drawn — ONLY allow the matching draw card type to counter
     if(game.drawType==='draw2') return card.v==='draw2';
     if(game.drawType==='wild4') return card.v==='wild4';
     return false;
   }
-  if(room.rules.noMercy && card.v==='wild4') return true;
+  if(room.rules&&room.rules.noMercy && card.v==='wild4') return true;
   if(card.c==='wild') return true;
   return card.c===game.activeColor || card.v===game.activeValue;
 }
-
-// After drawing penalty — same color OR matching draw card type allowed
 function canPlayAfterPenalty(card){
   if(game.drawType==='draw2' && card.v==='draw2') return true;
   if(game.drawType==='wild4' && card.v==='wild4') return true;
   return card.c===game.activeColor;
 }
 
-/* ── PLAY CARD ── */
-function playCard(who,idx){
-  if(who!==game.currentPlayer||game.gameOver||game.cpuBusy) return;
+// ── START GAME (host only) ──
+async function startGame(){
+  if(room.players.length<2){showToast('Need at least 2 players!');return;}
+  joinTimers.forEach(clearTimeout);joinTimers=[];
+
+  // Determine my index
+  myIndex = room.players.findIndex(p=>p.name===me.name&&!p.isBot);
+  if(myIndex<0) myIndex=0;
+
+  const n=room.players.length;
+  const deck=shuffle(buildDeck());
+  const hands=Array.from({length:n},()=>[]);
+  for(let i=0;i<7;i++) hands.forEach((_,p)=>hands[p].push(deck.pop()));
+
+  let first;
+  do{first=deck.pop();}while(first.c==='wild');
+  room.players.forEach(p=>p.score=0);
+
+  game={
+    deck, discard:[first], hands,
+    currentPlayer:0, dir:1,
+    activeColor:first.c, activeValue:first.v,
+    drawnThisTurn:false, pendingWild:false, gameOver:false,
+    cpuBusy:false, unoVulnerable:-1, unoCalledBy:-1,
+    cpuAutoUno:{}, drawStack:0, drawType:null, drawnPenalty:false,
+    lastWinPts:0,
+  };
+
+  if(first.v==='reverse') game.dir=-1;
+  else if(first.v==='skip'){game.currentPlayer=1;}
+  else if(first.v==='draw2'){drawCards(0,2);game.currentPlayer=1;}
+
+  if(roomListener&&room){ db.ref('rooms/'+room.id).off('value',roomListener); roomListener=null; }
+  await updateRoom(room.id, {status:'playing'});
+  // Write initial game state to Firebase
+  await pushGameState();
+  // Set disconnect cleanup for game state
+  db.ref('games/'+room.id).onDisconnect().remove();
+
+  goTo('gameScreen');
+  document.getElementById('chatBubble').style.display='flex';
+  startGameListener();
+  addChatMsg(null,'Game started! Good luck! 🎮');
+}
+
+function startGameAsGuest(roomData){
+  // Guest: determine my index and start listening
+  myIndex = roomData.players
+    ? Object.values(roomData.players).findIndex(p=>p.name===me.name&&!p.isBot)
+    : 0;
+  if(myIndex<0) myIndex=0;
+  goTo('gameScreen');
+  document.getElementById('chatBubble').style.display='flex';
+  startGameListener();
+  addChatMsg(null,'Joined the game! Good luck! 🎮');
+}
+
+function playAgain(){
+  document.getElementById('winScreen').classList.remove('show');
+  startGame();
+}
+async function backToLobbyFromWin(){
+  document.getElementById('winScreen').classList.remove('show');
+  stopGameListener();
+  if(room){ await db.ref('games/'+room.id).remove(); await deleteRoom(room.id); }
+  game=null; room=null;
+  refreshRooms();
+  goTo('lobbyScreen');
+}
+
+// ── DRAW ──
+function drawCardsLocal(who,n){ drawCards(who,n); }
+
+// ── PLAY CARD (my turn only) ──
+async function playCard(who,idx){
+  if(who!==myIndex||game.currentPlayer!==myIndex||game.gameOver||game.pendingWild) return;
   const card=game.hands[who][idx];
   if(!canPlay(card)){showToast("Can't play that card!");return;}
 
@@ -1417,53 +1484,33 @@ function playCard(who,idx){
   game.activeValue=card.v;
   if(card.c!=='wild') game.activeColor=card.c;
   game.drawnThisTurn=false;
-  game.drawStack=0;
-  game.drawType=null;
-  game.drawnPenalty=false;
+  game.drawStack=0; game.drawType=null; game.drawnPenalty=false;
   game.unoVulnerable=(game.hands[who].length===1)?who:-1;
-  if(who===0 && game.unoCalledBy!==0 && game.hands[who].length===1) game.unoCalledBy=-1;
+  if(game.unoCalledBy!==who && game.hands[who].length===1) game.unoCalledBy=-1;
 
   document.getElementById('endTurnBtn').classList.remove('show');
+  addChatMsg(null,`${me.name} played ${cardDisplay(card)}`);
 
-  const pName=room.players[who].name;
-  setStatus(`${who===0?'You':pName} played ${cardDisplay(card)}`);
-  addChatMsg(null,`${pName} played ${cardDisplay(card)}`);
-
-  if(checkWin(who)) return;
+  if(checkWinLocal(who)) return;
 
   if(card.c==='wild'){
-    if(who===0){
-      game.pendingWild=card;
-      renderGame();
-      openColorModal();
-      return;
-    } else {
-      game.activeColor=cpuPickColor(who);
-      applyEffect(card,who);
-      advance();
-      renderGame();
-      scheduleCPU();
-      return;
-    }
+    game.pendingWild=true;
+    renderGame();
+    openColorModal();
+    return; // don't push yet — wait for color pick
   }
 
   applyEffect(card,who);
   advance();
-  renderGame();
-  if(game.currentPlayer!==0) scheduleCPU();
-  else{ setStatus("Your turn! Play a card or draw."); renderGame(); }
+  await pushGameState();
 }
 
-/* ── EFFECT ── */
-// DRAW PENALTY RULE:
-//   +2 or +4 played → next player MUST draw those cards first (no skipping the draw).
-//   After drawing, if they have a card matching the CURRENT COLOR they can play it.
-//   If no color match → turn ends automatically after drawing.
+// ── EFFECT ──
 function applyEffect(card,who){
   const next=(who+game.dir+room.players.length)%room.players.length;
-  const nm=room.players[next].name;
+  const nm=room.players[next]?room.players[next].name:'next player';
   if(card.v==='skip'){
-    addChatMsg(null,`${nm} is skipped! 🚫`);
+    addChatMsg(null,`${nm} is skipped!`);
     setStatus(`${nm} is skipped!`);
     advance();
   } else if(card.v==='reverse'){
@@ -1471,19 +1518,17 @@ function applyEffect(card,who){
     addChatMsg(null,'Direction reversed! ⇄');
     setStatus('Direction reversed!');
   } else if(card.v==='draw2'){
-    game.drawStack=2;
+    game.drawStack=(game.drawStack||0)+2;
     game.drawType='draw2';
     game.drawnPenalty=false;
-    addChatMsg(null,`${nm} is hit by +2! Play a +2 to counter, or draw 2 cards.`);
-    setStatus(`${nm}: have a +2? Play it now! Otherwise click Draw to take 2 cards.`);
-    // Do NOT advance — next player draws then optionally plays
+    addChatMsg(null,`${nm} must draw 2 or counter!`);
+    setStatus(`${nm}: play +2 to counter OR draw 2 cards!`);
   } else if(card.v==='wild4'){
-    game.drawStack=4;
+    game.drawStack=(game.drawStack||0)+4;
     game.drawType='wild4';
     game.drawnPenalty=false;
-    addChatMsg(null,`${nm} is hit by +4! Play a +4 to counter, or draw 4 cards.`);
-    setStatus(`${nm}: have a +4? Play it now! Otherwise click Draw to take 4 cards.`);
-    // Do NOT advance — next player draws then optionally plays
+    addChatMsg(null,`${nm} must draw 4 or counter!`);
+    setStatus(`${nm}: play +4 to counter OR draw 4 cards!`);
   }
 }
 
@@ -1491,23 +1536,24 @@ function advance(){
   game.currentPlayer=(game.currentPlayer+game.dir+room.players.length)%room.players.length;
 }
 
-/* ── WIN ── */
-function checkWin(who){
+// ── WIN CHECK (local, then push) ──
+function checkWinLocal(who){
   if(game.hands[who].length===0){
     game.gameOver=true;
-    game.cpuBusy=false;
     let pts=0;
     game.hands.forEach((h,i)=>{if(i!==who)h.forEach(c=>pts+=cardPts(c));});
     room.players[who].score+=pts;
-    renderGame();
-    setTimeout(()=>showWin(who,pts),700);
+    game.lastWinPts=pts;
+    pushGameState();
     return true;
   }
   return false;
 }
+
 function showWin(who,pts){
   const p=room.players[who];
-  const isMe=who===0;
+  if(!p) return;
+  const isMe=who===myIndex;
   document.getElementById('winEmoji').textContent=isMe?'🎉':'😢';
   document.getElementById('winTitleTxt').textContent=isMe?'YOU WIN!':`${p.name} WINS!`;
   document.getElementById('winSubTxt').textContent=isMe?'Flawless victory!':'Better luck next round!';
@@ -1516,111 +1562,92 @@ function showWin(who,pts){
   addChatMsg(null,`${p.name} wins! 🏆 +${pts} points`);
 }
 
-/* ── DRAW CLICK ── */
-function onDrawClick(){
-  if(game.currentPlayer!==0||game.gameOver||game.cpuBusy||game.drawnThisTurn||game.pendingWild) return;
+// ── DRAW CLICK ──
+async function onDrawClick(){
+  if(game.currentPlayer!==myIndex||game.gameOver||game.drawnThisTurn||game.pendingWild) return;
 
   if(game.drawStack>0 && !game.drawnPenalty){
-    // MANDATORY PENALTY DRAW — draw all stacked cards first
     const total=game.drawStack;
-    drawCards(0,total);
+    drawCards(myIndex,total);
     game.drawnPenalty=true;
-    addChatMsg(null,`You drew ${total} cards.`);
-
-    // Check if any card in hand matches the current color — if so, player can play one
-    const colorMatch=game.hands[0].filter(c=>canPlayAfterPenalty(c));
+    addChatMsg(null,`${me.name} drew ${total} cards.`);
+    const colorMatch=game.hands[myIndex].filter(c=>canPlayAfterPenalty(c));
     if(colorMatch.length>0){
-      setStatus(`Drew ${total} cards — you can play a card! Same color or +${game.drawType==='draw2'?2:4} allowed.`);
+      setStatus(`Drew ${total} — you can play a matching card or end turn.`);
       document.getElementById('endTurnBtn').classList.add('show');
       game.drawnThisTurn=true;
-      renderGame();
     } else {
-      // No color match — turn ends automatically
-      setStatus(`Drew ${total} cards — no ${game.activeColor.toUpperCase()} card. Turn passed.`);
-      game.drawStack=0;
-      game.drawType=null;
-      game.drawnPenalty=false;
+      setStatus(`Drew ${total} cards — no match. Turn passed.`);
+      game.drawStack=0; game.drawType=null; game.drawnPenalty=false;
       advance();
-      renderGame();
-      if(game.currentPlayer!==0) scheduleCPU();
-      else setStatus("Your turn! Play a card or draw.");
     }
+    await pushGameState();
     return;
   }
 
-  // Normal draw (no penalty)
-  drawCards(0,1);
+  drawCards(myIndex,1);
   game.drawnThisTurn=true;
-  const drew=game.hands[0][game.hands[0].length-1];
-  addChatMsg(null,'You drew a card.');
+  const drew=game.hands[myIndex][game.hands[myIndex].length-1];
+  addChatMsg(null,`${me.name} drew a card.`);
   if(canPlay(drew)){
-    setStatus('Drew a card — you can play it or end your turn.');
+    setStatus('Drew a card — play it or end your turn.');
     document.getElementById('endTurnBtn').classList.add('show');
   } else {
     setStatus('Drew a card — no match. Turn passed.');
-    endTurn(); return;
+    game.drawnThisTurn=false;
+    advance();
   }
-  renderGame();
+  await pushGameState();
 }
 
-function endTurn(){
-  if(game.currentPlayer!==0||game.gameOver) return;
+async function endTurn(){
+  if(game.currentPlayer!==myIndex||game.gameOver) return;
   game.drawnThisTurn=false;
-  game.drawStack=0;
-  game.drawType=null;
-  game.drawnPenalty=false;
+  game.drawStack=0; game.drawType=null; game.drawnPenalty=false;
   document.getElementById('endTurnBtn').classList.remove('show');
   advance();
-  renderGame();
-  scheduleCPU();
+  await pushGameState();
 }
 
-/* ── UNO ── */
-function callUno(){
+// ── UNO ──
+async function callUno(){
   if(game.gameOver) return;
-  // Catch a vulnerable CPU
   if(game.unoVulnerable>0 && game.unoCalledBy!==game.unoVulnerable){
     const vul=game.unoVulnerable;
     drawCards(vul,2);
-    const nm=room.players[vul].name;
     showShout('CAUGHT!');
-    setStatus(`Caught ${nm}! They draw 2. ⚡`);
-    addChatMsg(null,`You caught ${nm} without calling UNO! They draw 2.`);
+    setStatus(`Caught ${room.players[vul].name}! They draw 2.`);
+    addChatMsg(null,`${me.name} caught ${room.players[vul].name} — draws 2!`);
     game.unoVulnerable=-1;
-    renderGame(); return;
+    await pushGameState();
+    return;
   }
-  // Player calls for themselves
-  if(game.hands[0].length===1){
-    game.unoCalledBy=0;
+  if(game.hands[myIndex].length===1){
+    game.unoCalledBy=myIndex;
     game.unoVulnerable=-1;
     showShout('UNO!');
     setStatus("UNO! You're safe!");
     addChatMsg(null,`${me.name} calls UNO! 🃏`);
+    await pushGameState();
   } else {
-    showToast("Can't call UNO yet — you need 1 card left.");
+    showToast("Can't call UNO — need 1 card left.");
   }
 }
 
-/* ── COLOR PICK ── */
-function openColorModal(){
-  document.getElementById('overlay').style.display='block';
-  document.getElementById('colorModal').style.display='block';
-}
-function pickColor(col){
+// ── COLOR PICK ──
+async function pickColor(col){
   document.getElementById('overlay').style.display='none';
   document.getElementById('colorModal').style.display='none';
   game.activeColor=col;
   game.pendingWild=false;
   const top=game.discard[game.discard.length-1];
-  addChatMsg(null,`You chose ${col.toUpperCase()}`);
-  applyEffect(top,0);
+  addChatMsg(null,`${me.name} chose ${col.toUpperCase()}`);
+  applyEffect(top,myIndex);
   advance();
-  renderGame();
-  if(game.currentPlayer!==0) scheduleCPU();
-  else setStatus("Your turn! Play a card or draw.");
+  await pushGameState();
 }
 
-/* ── CPU AI ── */
+// ── CPU AI (host only runs CPU) ──
 function cpuPickColor(who){
   const cnt={red:0,blue:0,green:0,yellow:0};
   game.hands[who].forEach(c=>{if(c.c!=='wild')cnt[c.c]++;});
@@ -1634,85 +1661,69 @@ function cpuPriority(card){
   if(card.v==='wild')  return 4;
   return parseInt(card.v)||0;
 }
-
 function scheduleCPU(){
-  if(game.currentPlayer===0||game.gameOver){game.cpuBusy=false;return;}
-  game.cpuBusy=true;
-  const think=700+Math.random()*900;
-  setTimeout(()=>doOneCPUTurn(), think);
-}
-function doOneCPUTurn(){
-  if(game.gameOver){game.cpuBusy=false;return;}
+  if(!game||game.gameOver) return;
   const who=game.currentPlayer;
   const p=room.players[who];
+  if(!p||!p.isBot) return;
+  const think=700+Math.random()*800;
+  setTimeout(()=>doOneCPUTurn(who), think);
+}
+async function doOneCPUTurn(who){
+  if(!game||game.gameOver) return;
+  if(game.currentPlayer!==who) return; // state changed
+  const p=room.players[who];
+  if(!p||!p.isBot) return;
 
-  // PENALTY: under +2 or +4 — check if CPU can counter BEFORE drawing
+  // Under draw penalty
   if(game.drawStack>0 && !game.drawnPenalty){
-    const counterType=game.drawType; // 'draw2' or 'wild4'
+    const counterType=game.drawType;
     const counter=game.hands[who].map((c,i)=>({c,i})).filter(({c})=>c.v===counterType);
     if(counter.length){
-      // CPU has a matching draw card — play it immediately without drawing!
-      addChatMsg(null,`${p.name} counters with a +${counterType==='draw2'?2:4}!`);
-      doPlayCPU(who, counter[0].i);
-      return;
-    }
-    // No counter — must draw all penalty cards
-    const total=game.drawStack;
-    drawCards(who,total);
-    game.drawnPenalty=true;
-    addChatMsg(null,`${p.name} has no counter — draws ${total} cards.`);
-    setStatus(`${p.name} drew ${total} cards.`);
-    renderGame();
-    // After drawing, check for a same-color or matching draw card to play
-    setTimeout(()=>{
-      if(game.gameOver){game.cpuBusy=false;return;}
+      await doPlayCPUCard(who, counter[0].i);
+    } else {
+      const total=game.drawStack;
+      drawCards(who,total);
+      game.drawnPenalty=true;
+      addChatMsg(null,`${p.name} draws ${total} cards.`);
       const colorMatch=game.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlayAfterPenalty(c));
       if(colorMatch.length){
         colorMatch.sort((a,b)=>cpuPriority(b.c)-cpuPriority(a.c));
-        doPlayCPU(who, colorMatch[0].i);
+        await doPlayCPUCard(who, colorMatch[0].i);
       } else {
-        addChatMsg(null,`${p.name} has no playable card after drawing — turn passes.`);
-        setStatus(`${p.name} has no playable card. Turn passed.`);
+        addChatMsg(null,`${p.name} has no match — passes.`);
         game.drawStack=0; game.drawType=null; game.drawnPenalty=false;
-        advance(); renderGame();
-        if(game.currentPlayer!==0){scheduleCPU();}
-        else{game.cpuBusy=false;setStatus("Your turn! Play a card or draw.");renderGame();}
+        advance();
+        await pushGameState();
       }
-    }, 700);
+    }
     return;
   }
 
-  // Normal turn — find playable cards
   const playable=game.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlay(c));
   if(!playable.length){
     drawCards(who,1);
     const drew=game.hands[who][game.hands[who].length-1];
     if(canPlay(drew)){
-      setTimeout(()=>{
-        if(game.gameOver){game.cpuBusy=false;return;}
-        doPlayCPU(who, game.hands[who].length-1);
-      },500);
+      await doPlayCPUCard(who, game.hands[who].length-1);
     } else {
       addChatMsg(null,`${p.name} draws and passes.`);
-      setStatus(`${p.name} draws a card and passes.`);
-      game.unoVulnerable=-1;
-      advance(); renderGame();
-      if(game.currentPlayer!==0){scheduleCPU();}
-      else{game.cpuBusy=false;setStatus("Your turn! Play a card or draw.");renderGame();}
+      advance();
+      await pushGameState();
     }
     return;
   }
   playable.sort((a,b)=>cpuPriority(b.c)-cpuPriority(a.c));
-  doPlayCPU(who, playable[0].i);
+  await doPlayCPUCard(who, playable[0].i);
 }
-
-function doPlayCPU(who,idx){
-  if(game.gameOver){game.cpuBusy=false;return;}
+async function doPlayCPUCard(who,idx){
+  if(!game||game.gameOver) return;
   const card=game.hands[who][idx];
   game.hands[who].splice(idx,1);
   game.discard.push(card);
   game.activeValue=card.v;
   if(card.c!=='wild') game.activeColor=card.c;
+  game.drawStack=0; game.drawType=null; game.drawnPenalty=false;
 
   const p=room.players[who];
   setStatus(`${p.name} played ${cardDisplay(card)}`);
@@ -1721,39 +1732,50 @@ function doPlayCPU(who,idx){
   // UNO auto-call
   if(game.hands[who].length===1){
     game.unoVulnerable=who;
-    setTimeout(()=>{
+    setTimeout(async()=>{
+      if(!game) return;
       const key=who+'_'+game.discard.length;
       if(!game.cpuAutoUno[key]){
         game.cpuAutoUno[key]=true;
-        game.unoCalledBy=who;
-        game.unoVulnerable=-1;
+        game.unoCalledBy=who; game.unoVulnerable=-1;
         showShout('UNO!');
         addChatMsg(null,`${p.name} calls UNO! 🃏`);
-        setStatus(`${p.name} calls UNO!`);
-        renderGame();
+        await pushGameState();
       }
     },600);
   }
 
-  if(checkWin(who)){game.cpuBusy=false;return;}
+  if(checkWinLocal(who)) return;
 
   if(card.c==='wild'){
     game.activeColor=cpuPickColor(who);
     addChatMsg(null,`${p.name} chose ${game.activeColor.toUpperCase()}`);
-    setStatus(`${p.name} plays Wild → chose ${game.activeColor.toUpperCase()}!`);
+    setStatus(`${p.name} plays Wild → ${game.activeColor.toUpperCase()}!`);
     applyEffect(card,who);
     advance();
-    renderGame();
-    if(game.currentPlayer!==0) scheduleCPU();
-    else{game.cpuBusy=false;setStatus("Your turn! Play a card or draw.");renderGame();}
+    await pushGameState();
     return;
   }
-
   applyEffect(card,who);
   advance();
-  renderGame();
-  if(game.currentPlayer!==0) scheduleCPU();
-  else{game.cpuBusy=false;setStatus("Your turn! Play a card or draw.");renderGame();}
+  await pushGameState();
+}
+
+async function leaveGame(){
+  if(confirm('Leave the game?')){
+    stopGameListener();
+    if(room){
+      await db.ref('games/'+room.id).remove();
+      await deleteRoom(room.id);
+    }
+    game=null; room=null;
+    document.getElementById('winScreen').classList.remove('show');
+    document.getElementById('chatBubble').style.display='none';
+    document.getElementById('chatPanel').classList.remove('open');
+    document.getElementById('chatMsgs').innerHTML='';
+    refreshRooms();
+    goTo('lobbyScreen');
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1791,7 +1813,8 @@ function renderGame(){
   renderCenter();
   renderGameScores();
   // UNO button glow
-  const canUno=(game.hands[0].length===1&&game.unoCalledBy!==0)||(game.unoVulnerable>0);
+  const myHand=game.hands[myIndex]||[];
+  const canUno=(myHand.length===1&&game.unoCalledBy!==myIndex)||(game.unoVulnerable>0&&game.unoVulnerable!==myIndex);
   document.getElementById('unoBtnGame').classList.toggle('faded',!canUno);
 }
 
@@ -1799,25 +1822,14 @@ function renderOpponents(){
   if(!game||!room) return;
   const el=document.getElementById('opponentsEl');
   el.innerHTML='';
-  // Render all players except self (index 0)
-  // Layout: show CPU/top as a grid of opp-zones
-  const n=room.players.length;
-  if(n<=2){
-    // Just show 1 opponent zone
-    el.appendChild(makeOppZone(1));
-  } else if(n<=4){
-    // top row for player 2, then side for 1 and 3
-    const row=document.createElement('div');
-    row.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;';
-    for(let i=1;i<n;i++) row.appendChild(makeOppZone(i));
-    el.appendChild(row);
-  } else {
-    // Wrap grid
-    const row=document.createElement('div');
-    row.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;';
-    for(let i=1;i<n;i++) row.appendChild(makeOppZone(i));
-    el.appendChild(row);
-  }
+  // Show all players except myIndex
+  const others=room.players.map((_,i)=>i).filter(i=>i!==myIndex);
+  const n=others.length;
+  if(n===0) return;
+  const row=document.createElement('div');
+  row.style.cssText=`display:grid;grid-template-columns:repeat(${Math.min(n,3)},1fr);gap:8px;`;
+  others.forEach(i=>row.appendChild(makeOppZone(i)));
+  el.appendChild(row);
 }
 
 function makeOppZone(i){
@@ -1881,11 +1893,12 @@ function renderCenter(){
   cd.style.boxShadow=`0 0 14px ${CHEX[game.activeColor]||'#555'}88`;
 
   document.getElementById('dirIcon').textContent=game.dir===1?'↻':'↺';
-  document.getElementById('turnTxt').textContent=game.currentPlayer===0?'Your Turn':room.players[game.currentPlayer].name;
+  const cp=room.players[game.currentPlayer];
+  document.getElementById('turnTxt').textContent=game.currentPlayer===myIndex?'Your Turn':(cp?cp.name:'...');
   document.getElementById('deckCountEl').textContent=`${game.deck.length} left`;
   document.getElementById('discardCountEl').textContent=`${game.discard.length} played`;
 
-  const canDraw=game.currentPlayer===0&&!game.gameOver&&!game.cpuBusy&&!game.pendingWild;
+  const canDraw=game.currentPlayer===myIndex&&!game.gameOver&&!game.pendingWild;
   document.getElementById('drawStackEl').classList.toggle('no-draw',!canDraw);
   // Show pending draw count on draw pile
   const drawEl=document.getElementById('drawStackEl');
@@ -1912,7 +1925,7 @@ function renderGameScores(){
     const av=document.createElement('div');
     av.className='avatar';av.style.cssText=`background:${p.color};width:22px;height:22px;font-size:10px;border:none;`;
     av.textContent=p.initial;
-    pill.innerHTML=`<span class="gs-name">${i===0?'You':p.name}</span><span class="gs-pts">${p.score}</span>`;
+    pill.innerHTML=`<span class="gs-name">${i===myIndex?'You':p.name}</span><span class="gs-pts">${p.score||0}</span>`;
     pill.prepend(av);
     el.appendChild(pill);
   });
