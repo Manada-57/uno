@@ -1104,11 +1104,12 @@ function toggleRule(id){
   el.classList.toggle('on');
 }
 function getRules(){
+  const g = id => { const el=document.getElementById(id); return el ? el.classList.contains('on') : false; };
   return {
-    stack:document.getElementById('ruleStack').classList.contains('on'),
-    jumpIn:document.getElementById('ruleJumpIn').classList.contains('on'),
-    s70:document.getElementById('rule70').classList.contains('on'),
-    noMercy:document.getElementById('ruleNoMercy').classList.contains('on'),
+    stack:   false,
+    jumpIn:  g('ruleJumpIn'),
+    s70:     g('rule70'),
+    noMercy: g('ruleNoMercy'),
   };
 }
 function genCode(){return 'UNO-'+(Math.random()*1000|0).toString(36).toUpperCase().padStart(3,'X');}
@@ -1175,6 +1176,7 @@ function enterRoomLobby(r, isHost){
 let joinTimers=[];
 function addBotsToRoom(){
   joinTimers.forEach(clearTimeout); joinTimers=[];
+  if(!room) return;
   if(room.cpuFill==='none') return;
   const total=room.maxPlayers;
   const humanCount=room.players.filter(p=>!p.isBot).length;
@@ -1193,6 +1195,7 @@ function addBotsToRoom(){
 }
 
 function renderRoomLobby(){
+  if(!room) return;
   document.getElementById('rh-roomName').textContent=room.name;
   document.getElementById('rh-code').textContent=room.code;
   document.getElementById('rh-players').textContent=`${room.players.length}/${room.maxPlayers} players`;
@@ -1271,14 +1274,7 @@ async function leaveRoom(){
   goTo('lobbyScreen');
 }
 
-function leaveRoom2_unused(){
-  // old stub — ignore
-  if(room){
-  }
-  room=null;
-  refreshRooms();
-  goTo('lobbyScreen');
-}
+/* leaveRoom2_unused removed */
 
 /* ═══════════════════════════════════════════════
    GAME ENGINE
@@ -1800,6 +1796,7 @@ function renderGame(){
 }
 
 function renderOpponents(){
+  if(!game||!room) return;
   const el=document.getElementById('opponentsEl');
   el.innerHTML='';
   // Render all players except self (index 0)
@@ -1846,6 +1843,7 @@ function makeOppZone(i){
 }
 
 function renderPlayerHand(){
+  if(!game||!room) return;
   const el=document.getElementById('playerHandEl');
   el.innerHTML='';
   const myTurn=game.currentPlayer===0&&!game.gameOver&&!game.cpuBusy&&!game.pendingWild;
@@ -1870,6 +1868,7 @@ function renderPlayerHand(){
 }
 
 function renderCenter(){
+  if(!game||!room) return;
   const top=game.discard[game.discard.length-1];
   const l=LABEL[top.v]||top.v;
   const dc=document.getElementById('discardEl');
@@ -1904,6 +1903,7 @@ function renderCenter(){
 }
 
 function renderGameScores(){
+  if(!game||!room) return;
   const el=document.getElementById('gameScoresEl');
   el.innerHTML='';
   room.players.forEach((p,i)=>{
