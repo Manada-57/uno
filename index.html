@@ -4,27 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UNO — Multiplayer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23E8372A'/><text y='.9em' font-size='80' x='10'>🃏</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script>
-// ══════════════════════════════════════════════════════════
-//  🔥 FIREBASE CONFIG — Replace with YOUR project config
-//  Go to: console.firebase.google.com → Project Settings → Web App
-// ══════════════════════════════════════════════════════════
-const firebaseConfig = {
-  apiKey:            "AIzaSyD8ZW7dPp6mHT6G_2cAPsyEW-zB2jl4UTs",
-  authDomain:        "uno-multiplayer-07.firebaseapp.com",
-  databaseURL:       "https://uno-multiplayer-07-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "uno-multiplayer-07",
-  storageBucket:     "uno-multiplayer-07.firebasestorage.app",
-  messagingSenderId: "964912618039",
-  appId:             "1:964912618039:web:e423402ca18da65fe5fdb2"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-</script>
 <style>
 /* ═══════════════════════════════════════════════
    ROOT & RESET
@@ -869,6 +853,19 @@ html,body{width:100%;min-height:100%;background:var(--bg);color:var(--text);font
 </div>
 
 <script>
+/* ── FIREBASE INIT ── */
+const firebaseConfig = {
+  apiKey:            "AIzaSyD8ZW7dPp6mHT6G_2cAPsyEW-zB2jl4UTs",
+  authDomain:        "uno-multiplayer-07.firebaseapp.com",
+  databaseURL:       "https://uno-multiplayer-07-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "uno-multiplayer-07",
+  storageBucket:     "uno-multiplayer-07.firebasestorage.app",
+  messagingSenderId: "964912618039",
+  appId:             "1:964912618039:web:e423402ca18da65fe5fdb2"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 /* ═══════════════════════════════════════════════
    BACKGROUND CANVAS
 ═══════════════════════════════════════════════ */
@@ -1257,8 +1254,25 @@ function simulateInvite(){
     }
   },1800);
 }
-async function leaveRoom2_unused(){
-  // legacy stub — real leaveRoom is defined below
+async function leaveRoom(){
+  joinTimers.forEach(clearTimeout); joinTimers=[];
+  if(roomListener&&room){ db.ref('rooms/'+room.id).off('value',roomListener); roomListener=null; }
+  if(room){
+    const isHost=room.players.find(p=>p.isHost&&p.name===me.name);
+    if(isHost){
+      await deleteRoom(room.id);
+    } else {
+      const myEntry=room.players.find(p=>p.name===me.name&&!p.isBot);
+      if(myEntry) await db.ref('rooms/'+room.id+'/players/'+myEntry.id).remove();
+    }
+  }
+  room=null;
+  refreshRooms();
+  goTo('lobbyScreen');
+}
+
+function leaveRoom2_unused(){
+  // old stub — ignore
   if(room){
   }
   room=null;
@@ -1298,7 +1312,7 @@ function cardPts(card){
   return parseInt(card.v)||0;
 }
 
-function startGame(){
+async function startGame(){
   if(room.players.length<2){showToast('Need at least 2 players!');return;}
   joinTimers.forEach(clearTimeout);joinTimers=[];
 
