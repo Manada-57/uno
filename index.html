@@ -783,7 +783,6 @@ function showWin(who,pts){
   const p=ROOM.players[who];if(!p)return;const isMe=who===MY_IDX;
   E('we').textContent=isMe?'🎉':'😢';E('wt').textContent=isMe?'YOU WIN!':esc(p.name)+' WINS!';E('wsub').textContent=isMe?'Flawless victory!':'Better luck next time!';E('wp').textContent='+'+pts+' pts';E('ws').classList.add('show');sysMsg(p.name+' wins! 🏆 +'+pts+' pts');
 }
-
 // DRAW
 async function onDraw(){
   if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX||GAME.drawnThisTurn||GAME.pendingWild)return;
