@@ -466,7 +466,6 @@ async function createRoom(){
   const host={id:pid,name:ME.name,color:ME.color,initial:ME.initial,isHost:true,isBot:false,score:0};
   const roomData={id:rid,name,code:genCode(),maxPlayers:_selMax,cpuFill,rules:{noMercy},host:ME.name,status:'waiting',players:{[pid]:host},createdAt:Date.now()};
   await dbSet('/rooms/'+rid,roomData);
-  // AUTO-DELETE: when host closes tab, room is removed
   dbRef('/rooms/'+rid).onDisconnect().remove();
   MY_PID=pid;MY_IDX=0;SS('roomId',rid);SS('myPid',pid);SS('myIdx',0);
   ROOM={...roomData,players:[host]};
@@ -491,7 +490,6 @@ async function joinRoomById(rid){
   MY_IDX=players.length;MY_PID=pid;
   const me={id:pid,name:ME.name,color:ME.color,initial:ME.initial,isHost:false,isBot:false,score:0};
   await dbSet('/rooms/'+rid+'/players/'+pid,me);
-  // AUTO-REMOVE: when guest closes tab, their slot is freed
   dbRef('/rooms/'+rid+'/players/'+pid).onDisconnect().remove();
   SS('myPid',pid);SS('myIdx',MY_IDX);SS('roomId',rid);
   const r2=await dbGet('/rooms/'+rid);
@@ -499,7 +497,7 @@ async function joinRoomById(rid){
   stopLobby();listenRoom(rid);renderRoomLobby();goTo('room');
 }
 
-// ROOM LISTENER — real-time via Firebase onValue
+// ROOM LISTENER
 function listenRoom(rid){
   if(roomSub)roomSub.off();
   roomSub=dbRef('/rooms/'+rid);
@@ -555,7 +553,6 @@ function copyLink(){navigator.clipboard.writeText(E('sl').textContent).catch(()=
 function cleanupRoom(){botTimers.forEach(clearTimeout);botTimers=[];stopRoomListener();ROOM=null;SS('roomId',null);SS('myPid',null);}
 async function leaveRoom(){
   if(!ROOM)return;
-  // FIX: Host leaves = entire room deleted so all clients get kicked via onValue
   if(imHost()){await dbDel('/rooms/'+ROOM.id);await dbDel('/games/'+ROOM.id);}
   else{await dbDel('/rooms/'+ROOM.id+'/players/'+MY_PID);}
   cleanupRoom();loadRooms();goTo('lobby');
@@ -565,46 +562,47 @@ async function leaveRoom(){
 function buildDeck(){const d=[];COLORS.forEach(c=>{d.push({c,v:'0'});for(let i=0;i<2;i++){ACTS.forEach(v=>d.push({c,v}));for(let n=1;n<=9;n++)d.push({c,v:String(n)});}});for(let i=0;i<4;i++){d.push({c:'wild',v:'wild'});d.push({c:'wild',v:'wild4'});}return d;}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-// PUSH GAME STATE TO FIREBASE
-// Private hands: each player's hand at /games/{id}/hands/{idx}
-// Shared state: everything else at /games/{id}/state (no hand data)
+// ═══════════════════════════════════════════════════════════════
+// PUSH GAME — THE DRAW BUG FIX IS HERE
+// ═══════════════════════════════════════════════════════════════
+// BUG (old code): await DB.ref().update(updates) with absolute paths like
+//   '/games/id/state' and '/games/id/hands/0'
+//   Firebase fires the /games/id onValue listener ONCE PER SUB-PATH changed.
+//   So with state + hands/0 in the same update, listener fires TWICE.
+//   First fire: state updated, hands/0 still OLD → drawn card not in hand → card vanishes.
+//   Second fire: hands/0 updated → too late, turn already passed visually.
+//
+// FIX: await DB.ref('/games/'+ROOM.id).update(updates) with RELATIVE keys
+//   'state' and 'hands/0'. Firebase treats this as ONE shallow merge at a
+//   single node → ONE write → ONE listener fire → state and hands arrive together.
 async function pushGame(){
   if(!ROOM||!GAME)return;
-  // KEY RULE: each client only writes the hands it actually owns.
-  // Writing opponent hands as [] would wipe their real cards.
-  // State (no hands) is written by whoever's turn it is.
-  // Hands are written separately — only YOUR hand, plus bot hands if you're host.
   const updates={};
-  // Shared game state (no hand data — just counts)
-  updates['/games/'+ROOM.id+'/state']={
+  updates['state']={
     handCounts:GAME.hands.map(h=>h.length),
     currentPlayer:GAME.currentPlayer,dir:GAME.dir,
     activeColor:GAME.activeColor,activeValue:GAME.activeValue,
     drawStack:GAME.drawStack,drawType:GAME.drawType,
     drawnPenalty:GAME.drawnPenalty,
-    // drawnThisTurn is intentionally NOT stored — it resets to false for each new turn
     pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
     unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,
     cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,
     lastWinPts:GAME.lastWinPts||0,seq:(GAME.seq||0)+1,
     deck:GAME.deck,discard:GAME.discard
   };
-  // Write MY hand (the one I actually have correct data for)
-  updates['/games/'+ROOM.id+'/hands/'+MY_IDX]=GAME.hands[MY_IDX]||[];
-  // Host also writes bot hands (host is the only one with correct bot hand data)
+  updates['hands/'+MY_IDX]=GAME.hands[MY_IDX]||[];
   if(imHost()){
     ROOM.players.forEach((p,i)=>{
-      if(p.isBot) updates['/games/'+ROOM.id+'/hands/'+i]=GAME.hands[i]||[];
+      if(p.isBot) updates['hands/'+i]=GAME.hands[i]||[];
     });
   }
-  await DB.ref().update(updates);
+  // KEY: single node ref with relative keys = ONE atomic write = ONE listener fire
+  await DB.ref('/games/'+ROOM.id).update(updates);
 }
 
 // GAME LISTENER
 function listenGame(){
   if(gameSub)gameSub.off();
-  // Listen to the PARENT /games/{id} node so we get state + hands together
-  // This is one snapshot — no race condition between state and hand reads
   gameSub=dbRef('/games/'+ROOM.id);
   gameSub.on('value',snap=>{
     if(!snap.exists())return;
@@ -613,14 +611,10 @@ function listenGame(){
     if(!s)return;
     const n=ROOM.players.length;
     const handsData=gameData.hands||{};
-    // Build hands array: use Firebase data for all players
-    // My own hand: always from Firebase (authoritative)
-    // Opponent hands: from Firebase (written by them or host)
     const allHands=[];
     for(let i=0;i<n;i++){
       allHands.push(toArr(handsData[i]));
     }
-    // handCounts is the source of truth for display — hands array is for gameplay
     const handCounts=toArr(s.handCounts);
     GAME={
       ...s,
@@ -629,10 +623,9 @@ function listenGame(){
       deck:toArr(s.deck),
       scores:toArr(s.scores),
       handCounts:handCounts,
-      drawnThisTurn:false  // always reset on new state — each turn starts fresh
+      drawnThisTurn:false
     };
     renderGame();
-    // Host runs CPU turns
     if(imHost()&&!GAME.gameOver){
       const cp=ROOM.players[GAME.currentPlayer];
       if(cp&&cp.isBot)setTimeout(()=>runCPU(GAME.currentPlayer,s.seq),900+Math.random()*500);
@@ -640,7 +633,7 @@ function listenGame(){
     if(!GAME.gameOver){
       if(GAME.currentPlayer===MY_IDX){
         if(GAME.drawStack>0&&!GAME.drawnPenalty)gst('You must draw '+GAME.drawStack+' OR counter with +'+(GAME.drawType==='draw2'?2:4)+'!');
-        else if(GAME.drawnThisTurn)gst('You drew — play the card or end your turn.');
+        else if(GAME.drawnThisTurn)gst('You drew \u2014 play the card or end your turn.');
         else gst('Your turn \u2014 play a card or draw.');
       }else{
         const cp=ROOM.players[GAME.currentPlayer];
@@ -655,37 +648,32 @@ function listenGame(){
 }
 function stopGameListener(){if(gameSub){gameSub.off();gameSub=null;}}
 
-// START GAME (host only)
+// START GAME
 async function startGame(){
   if(!ROOM||!imHost()){toast('Only the host can start!');return;}
   if(ROOM.players.length<2){toast('Need at least 2 players!');return;}
   botTimers.forEach(clearTimeout);botTimers=[];
   const n=ROOM.players.length,deck=shuffle(buildDeck()),hands=Array.from({length:n},()=>[]);
-  // Deal 7 cards to each player round-robin (guarantees exactly 7 each, no zeros)
   for(let round=0;round<7;round++){for(let p=0;p<n;p++)hands[p].push(deck.pop());}
   let first,safety=0;do{first=deck.pop();safety++;}while(first.c==='wild'&&safety<30);
   GAME={deck,hands,discard:[first],currentPlayer:0,dir:1,activeColor:first.c,activeValue:first.v,drawStack:0,drawType:null,drawnPenalty:false,drawnThisTurn:false,pendingWild:false,gameOver:false,unoCalledBy:-1,unoVulnerable:-1,cpuAutoUno:{},scores:Array(n).fill(0),lastWinPts:0,handCounts:hands.map(h=>h.length),seq:0};
   if(first.v==='reverse')GAME.dir=-1;else if(first.v==='skip')GAME.currentPlayer=1;else if(first.v==='draw2'){GAME.drawStack=2;GAME.drawType='draw2';}
   stopRoomListener();
   await dbUpd('/rooms/'+ROOM.id,{status:'playing'});
-  // Host writes ALL hands at game start (initial deal)
-  // After this, each player writes only their own hand on each turn
+  // Initial write: same single-node relative-key pattern
   const initUpdates={};
-  initUpdates['/games/'+ROOM.id+'/state']={
+  initUpdates['state']={
     handCounts:GAME.hands.map(h=>h.length),
     currentPlayer:GAME.currentPlayer,dir:GAME.dir,
     activeColor:GAME.activeColor,activeValue:GAME.activeValue,
     drawStack:GAME.drawStack,drawType:GAME.drawType,
-    drawnPenalty:false,
-    // drawnThisTurn not stored — resets locally on each new state
-    pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
+    drawnPenalty:false,pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
     unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,
     cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,
     lastWinPts:0,seq:1,deck:GAME.deck,discard:GAME.discard
   };
-  // Write every player's starting hand
-  GAME.hands.forEach((h,i)=>{ initUpdates['/games/'+ROOM.id+'/hands/'+i]=h; });
-  await DB.ref().update(initUpdates);
+  GAME.hands.forEach((h,i)=>{ initUpdates['hands/'+i]=h; });
+  await DB.ref('/games/'+ROOM.id).update(initUpdates);
   dbRef('/games/'+ROOM.id).onDisconnect().remove();
   enterGame();
 }
@@ -694,7 +682,7 @@ function enterGame(){goTo('game');E('cf').classList.add('v');E('chatmsgs').inner
 // LOCAL DRAW
 function drawLocal(who,n){for(let i=0;i<n;i++){if(GAME.deck.length<2){if(GAME.discard.length>1){const t=GAME.discard.pop();GAME.deck=shuffle(GAME.discard);GAME.discard=[t];}else break;}if(GAME.deck.length)GAME.hands[who].push(GAME.deck.pop());}GAME.handCounts=GAME.hands.map(h=>h.length);}
 
-// PLAYABILITY — FIX: takes 'who' parameter so CPU uses correct hand
+// PLAYABILITY
 function canPlay(card,who){
   const hand=GAME.hands[who]||[];
   if(GAME.drawStack>0&&!GAME.drawnPenalty){return GAME.drawType==='draw2'?card.v==='draw2':GAME.drawType==='wild4'?card.v==='wild4':false;}
@@ -702,7 +690,6 @@ function canPlay(card,who){
   if(card.c==='wild')return true;
   return card.c===GAME.activeColor||card.v===GAME.activeValue;
 }
-// FIX: after penalty draw, allow same color OR matching draw card
 function canPlayAfterPenalty(card){
   if(GAME.drawType==='draw2'&&card.v==='draw2')return true;
   if(GAME.drawType==='wild4'&&card.v==='wild4')return true;
@@ -718,7 +705,6 @@ async function playCard(idx){
   GAME.hands[MY_IDX].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;
   if(card.c!=='wild')GAME.activeColor=card.c;
   GAME.drawnThisTurn=false;GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;
-  // FIX: unoVulnerable when hand reaches 1 (not 2)
   GAME.unoVulnerable=GAME.hands[MY_IDX].length===1?MY_IDX:-1;
   GAME.handCounts=GAME.hands.map(h=>h.length);
   E('endb').classList.remove('show');
@@ -732,7 +718,6 @@ async function playCard(idx){
 function applyEffect(card,who){
   const n=ROOM.players.length,next=(who+GAME.dir+n)%n,nm=ROOM.players[next]?ROOM.players[next].name:'?';
   if(card.v==='skip'){sysMsg(nm+' is skipped!');advance();}
-  // FIX: with 2 players reverse acts as skip; otherwise just flip direction
   else if(card.v==='reverse'){GAME.dir*=-1;sysMsg('Direction reversed! \u21C4');if(n===2)advance();}
   else if(card.v==='draw2'){GAME.drawStack=(GAME.drawStack||0)+2;GAME.drawType='draw2';GAME.drawnPenalty=false;sysMsg(nm+': counter with +2 OR draw '+GAME.drawStack+'!');}
   else if(card.v==='wild4'){GAME.drawStack=(GAME.drawStack||0)+4;GAME.drawType='wild4';GAME.drawnPenalty=false;sysMsg(nm+': counter with +4 OR draw '+GAME.drawStack+'!');}
@@ -778,8 +763,7 @@ async function onDraw(){
   sysMsg(ME.name+' drew a card.');
 
   if(canPlay(drew,MY_IDX)){
-    // RULE 5: drawn card matches - MUST play immediately
-    // Push hand first so opponents see +1 count, then auto-play after short delay
+    // Rule 5: drawn card matches — must play immediately
     GAME.drawnThisTurn=true;
     await pushGame();
     gst('Drew a matching card \u2014 playing it automatically...');
@@ -788,8 +772,8 @@ async function onDraw(){
       await playCard(GAME.hands[MY_IDX].length-1);
     },700);
   } else {
-    // No match - card stays in hand, turn passes to next player
-    GAME.drawnThisTurn=false;
+    // No match — card stays in hand, turn passes
+    // drawnThisTurn stays false so next player starts fresh
     advance();
     await pushGame();
     gst('No match \u2014 card kept in hand, turn passed.');
@@ -815,7 +799,6 @@ async function pickColor(col){closeModals();GAME.activeColor=col;GAME.pendingWil
 function cpuBest(who){const cnt={red:0,blue:0,green:0,yellow:0};GAME.hands[who].forEach(c=>{if(c.c!=='wild')cnt[c.c]++;});return COLORS.reduce((a,b)=>cnt[a]>=cnt[b]?a:b);}
 function cpuPri(c){if(c.v==='wild4')return 9;if(c.v==='draw2')return 8;if(c.v==='skip')return 7;if(c.v==='reverse')return 6;if(c.v==='wild')return 5;return parseInt(c.v)||0;}
 async function runCPU(who,seq){
-  // FIX: Check current player matches, not seq (seq check was blocking repeated CPU turns)
   if(!GAME||!ROOM||GAME.gameOver||GAME.currentPlayer!==who)return;
   const p=ROOM.players[who];if(!p||!p.isBot)return;
   if(GAME.drawStack>0&&!GAME.drawnPenalty){
@@ -836,7 +819,6 @@ async function cpuPlay(who,idx){
   const card=GAME.hands[who][idx];GAME.hands[who].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;if(card.c!=='wild')GAME.activeColor=card.c;
   GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;GAME.handCounts=GAME.hands.map(h=>h.length);
   const p=ROOM.players[who];sysMsg(p.name+' played '+cardLbl(card)+(card.c!=='wild'?' ('+card.c+')':''));
-  // FIX: unoVulnerable set at 1 card
   if(GAME.hands[who].length===1){GAME.unoVulnerable=who;const key=who+'_'+GAME.discard.length;if(!(GAME.cpuAutoUno||{})[key]){if(!GAME.cpuAutoUno)GAME.cpuAutoUno={};GAME.cpuAutoUno[key]=true;GAME.unoCalledBy=who;GAME.unoVulnerable=-1;shout('UNO!');sysMsg(p.name+' calls UNO!');}}
   if(checkWin(who))return;
   if(card.c==='wild'){GAME.activeColor=cpuBest(who);sysMsg(p.name+' chose '+GAME.activeColor.toUpperCase());applyEffect(card,who);advance();await pushGame();return;}
@@ -859,9 +841,9 @@ function renderGame(){
 function renderOpps(){
   const el=E('oe');if(!el)return;el.innerHTML='';
   const others=ROOM.players.map((_,i)=>i).filter(i=>i!==MY_IDX);if(!others.length)return;
-  const grid=document.createElement('div');// For many opponents, use responsive grid that wraps nicely
-const cols = others.length <= 2 ? others.length : others.length <= 6 ? 3 : 4;
-grid.style.cssText='display:grid;grid-template-columns:repeat('+cols+',1fr);gap:6px;margin-bottom:8px;';
+  const grid=document.createElement('div');
+  const cols=others.length<=2?others.length:others.length<=6?3:4;
+  grid.style.cssText='display:grid;grid-template-columns:repeat('+cols+',1fr);gap:6px;margin-bottom:8px;';
   others.forEach(i=>{
     const p=ROOM.players[i],cnt=(GAME.handCounts&&GAME.handCounts[i])||0,act=GAME.currentPlayer===i;
     const div=document.createElement('div');div.className='oz'+(act?' at':'');
@@ -933,4 +915,4 @@ if(_ur2){window.addEventListener('load',()=>{setTimeout(()=>{if(E('lobby').class
 restoreSession();
 </script>
 </body>
-</html>
+</html> what this do
