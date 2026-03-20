@@ -845,8 +845,6 @@ async function callUno(){
     }
   }
 }
-
-// COLOR
 function openColorModal(){E('ov').style.display='block';E('colm').style.display='block';}
 async function pickColor(col){closeModals();GAME.activeColor=col;GAME.pendingWild=false;const top=GAME.discard[GAME.discard.length-1];sysMsg(ME.name+' chose '+col.toUpperCase());applyEffect(top,MY_IDX);advance();await pushGame();}
 
