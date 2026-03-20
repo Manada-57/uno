@@ -210,10 +210,10 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 <div class="screen active" id="splash">
   <div class="si">
     <div><div class="logo">UNO</div><div class="logo-sub">Multiplayer</div></div>
-    <div class="cards-r"><div class="sc">7</div><div class="sc">&#x22D8;</div><div class="sc">+2</div><div class="sc">&#x21C4;</div><div class="sc">&#x2605;</div></div>
+    <div class="cards-r"><div class="sc">7</div><div class="sc">⊘</div><div class="sc">+2</div><div class="sc">⇄</div><div class="sc">★</div></div>
     <div class="iw"><input type="text" id="ni" placeholder="Enter your name..." maxlength="16" autocomplete="off"></div>
-    <button class="btn btn-gold" onclick="goToLobby()">Play Now &#x1F3AE;</button>
-    <div style="font-size:12px;color:var(--d);text-align:center;line-height:1.5;">Real-time multiplayer &middot; Create or join rooms</div>
+    <button class="btn btn-gold" onclick="goToLobby()">Play Now 🎮</button>
+    <div style="font-size:12px;color:var(--d);text-align:center;line-height:1.5;">Real-time multiplayer · Create or join rooms</div>
   </div>
 </div>
 
@@ -226,14 +226,14 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
     <div>
       <div class="stl">Quick Actions</div>
       <div class="qg">
-        <div class="qc" onclick="goTo('create')"><div class="qc-i">&#x1F3E0;</div><div class="qc-t">Create Room</div></div>
-        <div class="qc" onclick="showJoinModal()"><div class="qc-i">&#x1F517;</div><div class="qc-t">Join by Code</div></div>
+        <div class="qc" onclick="goTo('create')"><div class="qc-i">🏠</div><div class="qc-t">Create Room</div></div>
+        <div class="qc" onclick="showJoinModal()"><div class="qc-i">🔗</div><div class="qc-t">Join by Code</div></div>
       </div>
     </div>
     <div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="stl" style="margin:0;">Open Rooms</div>
-        <button class="btn btn-sm btn-ghost" onclick="loadRooms()" style="width:auto;">&#x21BB;</button>
+        <button class="btn btn-sm btn-ghost" onclick="loadRooms()" style="width:auto;">↻</button>
       </div>
       <div style="margin-top:10px;" id="rl"></div>
     </div>
@@ -241,7 +241,7 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 </div>
 
 <div class="screen" id="create">
-  <div class="nav"><button class="btn btn-icon" onclick="goTo('lobby')">&#x2190;</button><div class="nav-logo">UNO</div><div style="width:44px;"></div></div>
+  <div class="nav"><button class="btn btn-icon" onclick="goTo('lobby')">←</button><div class="nav-logo">UNO</div><div style="width:44px;"></div></div>
   <div style="display:flex;justify-content:center;"><div class="fw"><div class="fb">
     <div class="ft">Create Room</div>
     <div style="font-size:13px;color:var(--m);margin-bottom:24px;">Set up your game and invite friends</div>
@@ -268,22 +268,22 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
     </div>
     <div style="display:flex;gap:10px;">
       <button class="btn btn-ghost" onclick="goTo('lobby')" style="flex:1;">Cancel</button>
-      <button class="btn btn-gold" onclick="createRoom()" style="flex:2;">Create &#x1F680;</button>
+      <button class="btn btn-gold" onclick="createRoom()" style="flex:2;">Create 🚀</button>
     </div>
   </div></div></div>
 </div>
 
 <div class="screen" id="room">
-  <div class="nav"><button class="btn btn-icon" onclick="leaveRoom()">&#x2190;</button><div class="nav-logo">UNO</div><div style="width:44px;"></div></div>
+  <div class="nav"><button class="btn btn-icon" onclick="leaveRoom()">←</button><div class="nav-logo">UNO</div><div style="width:44px;"></div></div>
   <div style="display:flex;justify-content:center;"><div class="rw">
     <div class="rh2">
       <div class="rht">
         <div class="rhn" id="rhn">Room</div>
-        <div class="cb"><div><div style="font-size:9px;font-weight:700;letter-spacing:2px;color:var(--m);text-transform:uppercase;">Code</div><div class="cv2" id="rhc">&#x2014;</div></div><button class="cpb" onclick="copyCode()">&#x1F4CB;</button></div>
+        <div class="cb"><div><div style="font-size:9px;font-weight:700;letter-spacing:2px;color:var(--m);text-transform:uppercase;">Code</div><div class="cv2" id="rhc">—</div></div><button class="cpb" onclick="copyCode()">📋</button></div>
       </div>
       <div class="rhb">
-        <div class="rhbg"><span>&#x1F465;</span><span id="rhp">0/4</span></div>
-        <div class="rhbg"><span id="rhsi">&#x23F3;</span><span id="rhst">Waiting</span></div>
+        <div class="rhbg"><span>👥</span><span id="rhp">0/4</span></div>
+        <div class="rhbg"><span id="rhsi">⏳</span><span id="rhst">Waiting</span></div>
       </div>
     </div>
     <div class="stl">Players</div>
@@ -310,7 +310,7 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
     <div id="oe"></div>
     <div class="cz">
       <div class="pile"><div class="pl">Draw</div><div class="dp" id="dpile" onclick="onDraw()">UNO</div><div class="pc" id="dpcnt"></div></div>
-      <div class="cm2"><div id="di">&#x21BB;</div><div id="cd"></div><div id="tt">&#x2014;</div></div>
+      <div class="cm2"><div id="di">↻</div><div id="cd"></div><div id="tt">—</div></div>
       <div class="pile"><div class="pl">Discard</div><div class="dt" id="dtop"></div><div class="pc" id="dcnt"></div></div>
     </div>
     <div class="pz">
@@ -320,7 +320,7 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
   </div>
   <div class="gc">
     <button class="btn buno fd" id="unob" onclick="callUno()">UNO!</button>
-    <button class="btn bend" id="endb" onclick="endTurn()">End Turn &#x2713;</button>
+    <button class="btn bend" id="endb" onclick="endTurn()">End Turn ✓</button>
   </div>
 </div>
 
@@ -339,7 +339,7 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
   <input type="text" class="ji" id="jci" placeholder="CODE" maxlength="9" oninput="this.value=this.value.toUpperCase()">
   <div style="display:flex;gap:10px;">
     <button class="btn btn-ghost" onclick="closeModals()" style="flex:1;">Cancel</button>
-    <button class="btn btn-gold" onclick="joinByCode()" style="flex:1;">Join &#x2192;</button>
+    <button class="btn btn-gold" onclick="joinByCode()" style="flex:1;">Join →</button>
   </div>
 </div>
 
@@ -347,21 +347,21 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 <div id="toast"></div>
 
 <div id="ws">
-  <div class="we" id="we">&#x1F389;</div>
+  <div class="we" id="we">🎉</div>
   <div class="wt" id="wt">YOU WIN!</div>
   <div class="wsb" id="wsub"></div>
   <div class="wp" id="wp"></div>
   <div class="wb">
-    <button class="btn btn-gold" onclick="playAgain()" style="font-size:15px;">Play Again &#x1F504;</button>
+    <button class="btn btn-gold" onclick="playAgain()" style="font-size:15px;">Play Again 🔄</button>
     <button class="btn btn-ghost" style="width:auto;" onclick="backToLobby()">Lobby</button>
   </div>
 </div>
 
-<button class="cf" id="cf" onclick="toggleChat()">&#x1F4AC;<div class="cbg" id="cbg"></div></button>
+<button class="cf" id="cf" onclick="toggleChat()">💬<div class="cbg" id="cbg"></div></button>
 <div class="cp" id="cp">
-  <div class="cph"><div class="cpht">Game Chat</div><button class="cpc" onclick="toggleChat()">&#x2715;</button></div>
+  <div class="cph"><div class="cpht">Game Chat</div><button class="cpc" onclick="toggleChat()">✕</button></div>
   <div class="chatmsgs" id="chatmsgs"></div>
-  <div class="cir"><input type="text" class="ci" id="ci" placeholder="Say something..." maxlength="80" onkeydown="if(event.key==='Enter')sendChat()"><button class="cs" onclick="sendChat()">&#x2192;</button></div>
+  <div class="cir"><input type="text" class="ci" id="ci" placeholder="Say something..." maxlength="80" onkeydown="if(event.key==='Enter')sendChat()"><button class="cs" onclick="sendChat()">→</button></div>
 </div>
 
 <script>
@@ -374,7 +374,7 @@ const DB=firebase.database();
 
 // CONSTANTS
 const COLORS=['red','blue','green','yellow'],ACTS=['skip','reverse','draw2'];
-const LBL={skip:'\u2298',reverse:'\u21c4',draw2:'+2',wild:'\u2605',wild4:'+4'};
+const LBL={skip:'⊘',reverse:'⇄',draw2:'+2',wild:'★',wild4:'+4'};
 const CGRAD={red:'linear-gradient(150deg,#E8372A,#9E1F14)',blue:'linear-gradient(150deg,#1E7FD8,#0D4280)',green:'linear-gradient(150deg,#26B152,#145C2C)',yellow:'linear-gradient(150deg,#F7C520,#BF980E)'};
 const CHEX={red:'#E8372A',blue:'#1E7FD8',green:'#26B152',yellow:'#F7C520'};
 const AVC=['#E8372A','#1E7FD8','#26B152','#F7C520','#9B59B6','#E67E22','#1ABC9C','#E91E8C','#00BCD4','#FF5722'];
@@ -426,7 +426,7 @@ function goToLobby(){
 // LOBBY
 let _lobbyRef=null;
 function loadRooms(){
-  E('rl').innerHTML='<div class="es">\u23F3 Loading...</div>';
+  E('rl').innerHTML='<div class="es">⏳ Loading...</div>';
   if(_lobbyRef)_lobbyRef.off();
   _lobbyRef=dbRef('/rooms');
   _lobbyRef.on('value',snap=>{
@@ -439,10 +439,10 @@ function renderRooms(rooms){
   rooms.forEach(r=>r.players=toArr(r.players));
   const open=rooms.filter(r=>r.status==='waiting'&&r.players.length<r.maxPlayers);
   const busy=rooms.filter(r=>r.status==='playing');
-  if(!rooms.length){E('rl').innerHTML='<div class="es"><div style="font-size:44px;">\u1F0CF</div><div>No rooms yet \u2014 create one!</div></div>';return;}
+  if(!rooms.length){E('rl').innerHTML='<div class="es"><div style="font-size:44px;">🃏</div><div>No rooms yet — create one!</div></div>';return;}
   let html='';
-  open.forEach(r=>{html+='<div class="rc" onclick="joinRoomById(\''+r.id+'\')"><div class="rdot w"></div><div class="ri"><div class="rn2">'+esc(r.name)+'</div><div class="rm">Host: '+esc(r.host)+' \u00B7 '+r.players.length+'/'+r.maxPlayers+' players</div></div><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();joinRoomById(\''+r.id+'\')" style="width:auto;">Join</button></div>';});
-  busy.forEach(r=>{html+='<div class="rc" style="opacity:.45;cursor:default;"><div class="rdot p"></div><div class="ri"><div class="rn2">'+esc(r.name)+'</div><div class="rm">In Progress \u00B7 '+r.players.length+'/'+r.maxPlayers+'</div></div></div>';});
+  open.forEach(r=>{html+='<div class="rc" onclick="joinRoomById(\''+r.id+'\')"><div class="rdot w"></div><div class="ri"><div class="rn2">'+esc(r.name)+'</div><div class="rm">Host: '+esc(r.host)+' · '+r.players.length+'/'+r.maxPlayers+' players</div></div><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();joinRoomById(\''+r.id+'\')" style="width:auto;">Join</button></div>';});
+  busy.forEach(r=>{html+='<div class="rc" style="opacity:.45;cursor:default;"><div class="rdot p"></div><div class="ri"><div class="rn2">'+esc(r.name)+'</div><div class="rm">In Progress · '+r.players.length+'/'+r.maxPlayers+'</div></div></div>';});
   if(!open.length&&busy.length)html='<div class="es" style="padding:14px 0;font-size:13px;">All rooms in progress</div>'+html;
   E('rl').innerHTML=html;
 }
@@ -542,14 +542,14 @@ function renderRoomLobby(){
   const sg=E('sg');sg.innerHTML='';
   for(let i=0;i<ROOM.maxPlayers;i++){
     const p=ROOM.players[i],div=document.createElement('div');
-    if(p){div.className='slot f'+(p.isHost?' h':'');const tag=p.isHost?'host':p.isBot?'bot':p.id===MY_PID?'me':'';const tagTxt=p.isHost?'\u{1F451} Host':p.isBot?'\u{1F916} Bot':p.id===MY_PID?'\u2726 You':'';div.innerHTML='<div class="sav" style="background:'+p.color+'">'+p.initial+'</div><div class="snm">'+esc(p.name)+'</div><div class="stg '+tag+'">'+tagTxt+'</div>';}
-    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d')">+</div><div class="stg" style="color:var(--d)">Open</div>';}
+    if(p){div.className='slot f'+(p.isHost?' h':'');const tag=p.isHost?'host':p.isBot?'bot':p.id===MY_PID?'me':'';const tagTxt=p.isHost?'👑 Host':p.isBot?'🤖 Bot':p.id===MY_PID?'✦ You':'';div.innerHTML='<div class="sav" style="background:'+p.color+'">'+p.initial+'</div><div class="snm">'+esc(p.name)+'</div><div class="stg '+tag+'">'+tagTxt+'</div>';}
+    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d)">+</div><div class="stg" style="color:var(--d)">Open</div>';}
     sg.appendChild(div);
   }
   const btn=E('stbtn'),isH=imHost(),can=ROOM.players.length>=2;
-  if(isH){btn.disabled=false;btn.style.opacity='1';btn.textContent=can?'Start Game \u{1F3AE}':'Need '+(2-ROOM.players.length)+' more';}
+  if(isH){btn.disabled=false;btn.style.opacity='1';btn.textContent=can?'Start Game 🎮':'Need '+(2-ROOM.players.length)+' more';}
   else{btn.disabled=true;btn.style.opacity='0.5';btn.textContent='Waiting for host...';}
-  E('rhsi').textContent=can?'\u2705':'\u23F3';E('rhst').textContent=can?'Ready!':'Waiting...';
+  E('rhsi').textContent=can?'✅':'⏳';E('rhst').textContent=can?'Ready!':'Waiting...';
 }
 function copyCode(){navigator.clipboard.writeText(ROOM.code).catch(()=>{});toast('Code copied!');}
 function copyLink(){navigator.clipboard.writeText(E('sl').textContent).catch(()=>{});toast('Link copied!');}
@@ -636,11 +636,11 @@ function listenGame(){
     if(!GAME.gameOver){
       if(GAME.currentPlayer===MY_IDX){
         if(GAME.drawStack>0&&!GAME.drawnPenalty)gst('You must draw '+GAME.drawStack+' OR counter with +'+(GAME.drawType==='draw2'?2:4)+'!');
-        else if(GAME.drawnThisTurn)gst('You drew \u2014 play the card or end your turn.');
-        else gst('Your turn \u2014 play a card or draw.');
+        else if(GAME.drawnThisTurn)gst('You drew — play the card or end your turn.');
+        else gst('Your turn — play a card or draw.');
       }else{
         const cp=ROOM.players[GAME.currentPlayer];
-        gst(cp?(cp.name+"'s turn \u2014 waiting..."):'Waiting...');
+        gst(cp?(cp.name+"'s turn — waiting..."):'Waiting...');
       }
     }
     if(GAME.gameOver){
@@ -679,7 +679,7 @@ async function startGame(){
   dbRef('/games/'+ROOM.id).onDisconnect().remove();
   enterGame();
 }
-function enterGame(){goTo('game');E('cf').classList.add('v');E('chatmsgs').innerHTML='';listenGame();sysMsg('Game started! Good luck \u{1F3AE}');}
+function enterGame(){goTo('game');E('cf').classList.add('v');E('chatmsgs').innerHTML='';listenGame();sysMsg('Game started! Good luck 🎮');}
 
 // LOCAL DRAW
 function drawLocal(who,n){for(let i=0;i<n;i++){if(GAME.deck.length<2){if(GAME.discard.length>1){const t=GAME.discard.pop();GAME.deck=shuffle(GAME.discard);GAME.discard=[t];}else break;}if(GAME.deck.length)GAME.hands[who].push(GAME.deck.pop());}GAME.handCounts=GAME.hands.map(h=>h.length);}
@@ -769,7 +769,7 @@ async function playCard(idx){
 function applyEffect(card,who){
   const n=ROOM.players.length,next=(who+GAME.dir+n)%n,nm=ROOM.players[next]?ROOM.players[next].name:'?';
   if(card.v==='skip'){sysMsg(nm+' is skipped!');advance();}
-  else if(card.v==='reverse'){GAME.dir*=-1;sysMsg('Direction reversed! \u21C4');if(n===2)advance();}
+  else if(card.v==='reverse'){GAME.dir*=-1;sysMsg('Direction reversed! ⇄');if(n===2)advance();}
   else if(card.v==='draw2'){GAME.drawStack=(GAME.drawStack||0)+2;GAME.drawType='draw2';GAME.drawnPenalty=false;sysMsg(nm+': counter with +2 OR draw '+GAME.drawStack+'!');}
   else if(card.v==='wild4'){GAME.drawStack=(GAME.drawStack||0)+4;GAME.drawType='wild4';GAME.drawnPenalty=false;sysMsg(nm+': counter with +4 OR draw '+GAME.drawStack+'!');}
 }
@@ -781,7 +781,7 @@ function checkWin(who){
 }
 function showWin(who,pts){
   const p=ROOM.players[who];if(!p)return;const isMe=who===MY_IDX;
-  E('we').textContent=isMe?'\u{1F389}':'\u{1F622}';E('wt').textContent=isMe?'YOU WIN!':esc(p.name)+' WINS!';E('wsub').textContent=isMe?'Flawless victory!':'Better luck next time!';E('wp').textContent='+'+pts+' pts';E('ws').classList.add('show');sysMsg(p.name+' wins! \u{1F3C6} +'+pts+' pts');
+  E('we').textContent=isMe?'🎉':'😢';E('wt').textContent=isMe?'YOU WIN!':esc(p.name)+' WINS!';E('wsub').textContent=isMe?'Flawless victory!':'Better luck next time!';E('wp').textContent='+'+pts+' pts';E('ws').classList.add('show');sysMsg(p.name+' wins! 🏆 +'+pts+' pts');
 }
 
 // DRAW
@@ -795,12 +795,12 @@ async function onDraw(){
     const hasMatch=GAME.hands[MY_IDX].some(c=>canPlayAfterPenalty(c));
     if(hasMatch){
       await pushGame();
-      gst('Drew '+total+' \u2014 play a matching card or end turn.');
+      gst('Drew '+total+' — play a matching card or end turn.');
       E('endb').classList.add('show');
     } else {
       // Reset stack after drawing
       GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; GAME.drawnThisTurn=false;
-      gst('Drew '+total+' \u2014 no match. Card kept, turn passed.');
+      gst('Drew '+total+' — no match. Card kept, turn passed.');
       advance();
       await pushGame();
     }
@@ -812,7 +812,7 @@ async function onDraw(){
   if(canPlay(drew,MY_IDX)){
     GAME.drawnThisTurn=true;
     await pushGame();
-    gst('Drew a matching card \u2014 playing it automatically...');
+    gst('Drew a matching card — playing it automatically...');
     setTimeout(async()=>{
       if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX)return;
       await playCard(GAME.hands[MY_IDX].length-1);
@@ -820,7 +820,7 @@ async function onDraw(){
   } else {
     advance();
     await pushGame();
-    gst('No match \u2014 card kept in hand, turn passed.');
+    gst('No match — card kept in hand, turn passed.');
   }
 }
 async function endTurn(){if(!GAME||GAME.currentPlayer!==MY_IDX||GAME.gameOver)return;GAME.drawnThisTurn=false;GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;E('endb').classList.remove('show');advance();await pushGame();}
@@ -845,6 +845,8 @@ async function callUno(){
     }
   }
 }
+
+// COLOR
 function openColorModal(){E('ov').style.display='block';E('colm').style.display='block';}
 async function pickColor(col){closeModals();GAME.activeColor=col;GAME.pendingWild=false;const top=GAME.discard[GAME.discard.length-1];sysMsg(ME.name+' chose '+col.toUpperCase());applyEffect(top,MY_IDX);advance();await pushGame();}
 
@@ -863,7 +865,7 @@ async function runCPU(who,seq){
     else{
       // Reset stack after drawing
       GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; 
-      sysMsg(p.name+' no match \u2014 passes.');advance();await pushGame();
+      sysMsg(p.name+' no match — passes.');advance();await pushGame();
     }
     return;
   }
@@ -954,7 +956,7 @@ function renderCenter(){
   const l=cardLbl(top);
   const dt=E('dtop');if(dt){dt.innerHTML='<span class="dcc tl">'+l+'</span><span style="font-family:\'Bebas Neue\',cursive;font-size:26px;">'+l+'</span><span class="dcc br">'+l+'</span>';dt.style.background=top.c==='wild'?(CGRAD[GAME.activeColor]||'#222'):CGRAD[top.c];dt.style.color=(top.c==='yellow'||(top.c==='wild'&&GAME.activeColor==='yellow'))?'rgba(40,28,0,.9)':'rgba(255,255,255,.95)';}
   const cd=E('cd');if(cd){cd.style.background=CHEX[GAME.activeColor]||'#555';cd.style.boxShadow='0 0 14px '+(CHEX[GAME.activeColor]||'#555')+'88';}
-  const di=E('di');if(di)di.textContent=GAME.dir===1?'\u21BB':'\u21BA';
+  const di=E('di');if(di)di.textContent=GAME.dir===1?'↻':'↺';
   const tt=E('tt');if(tt){const cp=ROOM.players[GAME.currentPlayer];tt.textContent=GAME.currentPlayer===MY_IDX?'Your Turn':(cp?cp.name:'...');}
   const dpc=E('dpcnt');if(dpc)dpc.textContent=GAME.deck.length+' left';
   const dsc=E('dcnt');if(dsc)dsc.textContent=GAME.discard.length+' played';
@@ -969,7 +971,7 @@ function renderScores(){
 let _co=false,_ur=0;
 function toggleChat(){_co=!_co;E('cp').classList.toggle('o',_co);if(_co){_ur=0;E('cbg').style.display='none';}}
 function sysMsg(t){const el=E('chatmsgs');const d=document.createElement('div');d.className='cmsg sys';d.innerHTML='<span class="cmt">'+esc(t)+'</span>';el.appendChild(d);el.scrollTop=el.scrollHeight;if(!_co){_ur++;const b=E('cbg');b.textContent=_ur>9?'9+':_ur;b.style.display='flex';}}
-function sendChat(){const inp=E('ci');const txt=(inp.value||'').trim();if(!txt||!ME.name)return;inp.value='';const el=E('chatmsgs');const d=document.createElement('div');d.className='cmsg';const p=ROOM?ROOM.players.find(x=>x.name===ME.name):null;d.innerHTML='<span class="cmn" style="color:'+(p?p.color:'#fff')+'">'+esc(ME.name)+':</span><span class="cmt">'+esc(txt)+'</span>';el.appendChild(d);el.scrollTop=el.scrollHeight;if(ROOM&&Math.random()<.35){const bots=ROOM.players.filter(p=>p.isBot);if(bots.length){const r=['\u{1F600}GG!','Nice!','Watch out!','UNO soon','Feeling lucky?'];setTimeout(()=>{const d2=document.createElement('div');d2.className='cmsg';const b=bots[0|Math.random()*bots.length];d2.innerHTML='<span class="cmn" style="color:'+b.color+'">'+esc(b.name)+':</span><span class="cmt">'+esc(r[0|Math.random()*r.length])+'</span>';E('chatmsgs').appendChild(d2);E('chatmsgs').scrollTop=E('chatmsgs').scrollHeight;},1000+Math.random()*700);}}}
+function sendChat(){const inp=E('ci');const txt=(inp.value||'').trim();if(!txt||!ME.name)return;inp.value='';const el=E('chatmsgs');const d=document.createElement('div');d.className='cmsg';const p=ROOM?ROOM.players.find(x=>x.name===ME.name):null;d.innerHTML='<span class="cmn" style="color:'+(p?p.color:'#fff')+'">'+esc(ME.name)+':</span><span class="cmt">'+esc(txt)+'</span>';el.appendChild(d);el.scrollTop=el.scrollHeight;if(ROOM&&Math.random()<.35){const bots=ROOM.players.filter(p=>p.isBot);if(bots.length){const r=['😀GG!','Nice!','Watch out!','UNO soon','Feeling lucky?'];setTimeout(()=>{const d2=document.createElement('div');d2.className='cmsg';const b=bots[0|Math.random()*bots.length];d2.innerHTML='<span class="cmn" style="color:'+b.color+'">'+esc(b.name)+':</span><span class="cmt">'+esc(r[0|Math.random()*r.length])+'</span>';E('chatmsgs').appendChild(d2);E('chatmsgs').scrollTop=E('chatmsgs').scrollHeight;},1000+Math.random()*700);}}}
 
 // SESSION RESTORE
 async function restoreSession(){
