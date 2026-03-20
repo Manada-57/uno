@@ -575,29 +575,55 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);
 // FIX: await DB.ref('/games/'+ROOM.id).update(updates) with RELATIVE keys
 //   'state' and 'hands/0'. Firebase treats this as ONE shallow merge at a
 //   single node → ONE write → ONE listener fire → state and hands arrive together.
-async function pushGame(){
-  if(!ROOM||!GAME)return;
-  const updates={};
-  updates['state']={
-    handCounts:GAME.hands.map(h=>h.length),
-    currentPlayer:GAME.currentPlayer,dir:GAME.dir,
-    activeColor:GAME.activeColor,activeValue:GAME.activeValue,
-    drawStack:GAME.drawStack,drawType:GAME.drawType,
-    drawnPenalty:GAME.drawnPenalty,
-    pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
-    unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,
-    cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,
-    lastWinPts:GAME.lastWinPts||0,seq:(GAME.seq||0)+1,
-    deck:GAME.deck,discard:GAME.discard
+async function pushGame() {
+  if (!ROOM || !GAME) return;
+  
+  // 1. Helper to ensure we don't send 'undefined' to Firebase
+  // Firebase crashes on undefined, but accepts null.
+  const fixU = (v) => v === undefined ? null : v;
+
+  const updates = {};
+  
+  // 2. Build the state object carefully
+  updates['state'] = {
+    handCounts: GAME.hands.map(h => h.length),
+    currentPlayer: GAME.currentPlayer,
+    dir: GAME.dir,
+    activeColor: fixU(GAME.activeColor),
+    activeValue: fixU(GAME.activeValue),
+    drawStack: GAME.drawStack || 0,
+    drawType: fixU(GAME.drawType),   // <--- THE MAIN FIX
+    drawnPenalty: GAME.drawnPenalty || false,
+    pendingWild: GAME.pendingWild || false,
+    gameOver: GAME.gameOver || false,
+    unoCalledBy: fixU(GAME.unoCalledBy),
+    unoVulnerable: fixU(GAME.unoVulnerable),
+    cpuAutoUno: GAME.cpuAutoUno || {},
+    scores: GAME.scores || [],
+    lastWinPts: GAME.lastWinPts || 0,
+    seq: (GAME.seq || 0) + 1,
+    deck: GAME.deck,
+    discard: GAME.discard
   };
-  updates['hands/'+MY_IDX]=GAME.hands[MY_IDX]||[];
-  if(imHost()){
-    ROOM.players.forEach((p,i)=>{
-      if(p.isBot) updates['hands/'+i]=GAME.hands[i]||[];
+
+  // 3. Update hands
+  updates['hands/' + MY_IDX] = GAME.hands[MY_IDX] || [];
+
+  // If host, update bot hands too
+  if (imHost()) {
+    ROOM.players.forEach((p, i) => {
+      if (p.isBot) updates['hands/' + i] = GAME.hands[i] || [];
     });
   }
-  // KEY: single node ref with relative keys = ONE atomic write = ONE listener fire
-  await DB.ref('/games/'+ROOM.id).update(updates);
+
+  // 4. Send to Firebase
+  // Using a try/catch block prevents the game from freezing if the internet glitches
+  try {
+    await DB.ref('/games/' + ROOM.id).update(updates);
+  } catch (e) {
+    console.error("Sync Error:", e);
+    toast("Connection issue! Retrying...");
+  }
 }
 
 // GAME LISTENER
