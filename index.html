@@ -387,7 +387,7 @@ let ROOM=null, GAME=null;
 let roomSub=null, gameSub=null;
 let botTimers=[];
 
-// Fix Undefined Helper (Prevents Firebase Crashes)
+// Fix Undefined Helper
 const fixU = (v) => v === undefined ? null : v;
 
 // SESSION
@@ -543,7 +543,7 @@ function renderRoomLobby(){
   for(let i=0;i<ROOM.maxPlayers;i++){
     const p=ROOM.players[i],div=document.createElement('div');
     if(p){div.className='slot f'+(p.isHost?' h':'');const tag=p.isHost?'host':p.isBot?'bot':p.id===MY_PID?'me':'';const tagTxt=p.isHost?'👑 Host':p.isBot?'🤖 Bot':p.id===MY_PID?'✦ You':'';div.innerHTML='<div class="sav" style="background:'+p.color+'">'+p.initial+'</div><div class="snm">'+esc(p.name)+'</div><div class="stg '+tag+'">'+tagTxt+'</div>';}
-    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d')">+</div><div class="stg" style="color:var(--d)">Open</div>';}
+    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d)">+</div><div class="stg" style="color:var(--d)">Open</div>';}
     sg.appendChild(div);
   }
   const btn=E('stbtn'),isH=imHost(),can=ROOM.players.length>=2;
@@ -565,7 +565,7 @@ async function leaveRoom(){
 function buildDeck(){const d=[];COLORS.forEach(c=>{d.push({c,v:'0'});for(let i=0;i<2;i++){ACTS.forEach(v=>d.push({c,v}));for(let n=1;n<=9;n++)d.push({c,v:String(n)});}});for(let i=0;i<4;i++){d.push({c:'wild',v:'wild'});d.push({c:'wild',v:'wild4'});}return d;}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-// PUSH GAME (Fixed Sync)
+// PUSH GAME
 async function pushGame() {
   if (!ROOM || !GAME) return;
   const updates = {};
@@ -698,7 +698,7 @@ function canPlayAfterPenalty(card){
   return card.c===GAME.activeColor;
 }
 
-// AUTO PENALTY (Forgot UNO)
+// AUTO PENALTY
 async function autoPenaltyCheck(playerIdx) {
     if (!GAME || GAME.gameOver) return;
     if (GAME.unoVulnerable === playerIdx) {
@@ -725,15 +725,14 @@ async function autoPenaltyCheck(playerIdx) {
     }
 }
 
-// PLAY CARD (Fixed Stacking Bug)
+// PLAY CARD
 async function playCard(idx){
   if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX)return;
   const card=GAME.hands[MY_IDX][idx];if(!card)return;
   const ok=GAME.drawnPenalty?canPlayAfterPenalty(card):canPlay(card,MY_IDX);
   if(!ok){toast("Can't play that card!");return;}
   
-  // FIX: If we just drew a penalty, the stack is cleared before playing.
-  // The penalty phase is over. We are now playing a regular card from our hand.
+  // FIX: Clear stack if penalty was drawn
   if (GAME.drawnPenalty) {
       GAME.drawStack = 0;
       GAME.drawType = null;
@@ -791,7 +790,6 @@ function showWin(who,pts){
 async function onDraw(){
   if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX||GAME.drawnThisTurn||GAME.pendingWild)return;
   
-  // CASE: We are being hit by a +2 or +4
   if(GAME.drawStack>0&&!GAME.drawnPenalty){
     const total=GAME.drawStack;
     drawLocal(MY_IDX,total);
@@ -806,20 +804,18 @@ async function onDraw(){
       gst('Drew '+total+' — play a matching card or end turn.');
       E('endb').classList.add('show');
     } else {
-      // FIX: Reset the stack and turn variables because the penalty is served
       GAME.drawStack=0; 
       GAME.drawType=null; 
       GAME.drawnPenalty=false; 
       GAME.drawnThisTurn=false;
       
       gst('Drew '+total+' — no match. Card kept, turn passed.');
-      advance(); // Turn ends
+      advance();
       await pushGame();
     }
     return;
   }
   
-  // CASE: Normal Draw (no active penalty)
   drawLocal(MY_IDX,1);
   const drew=GAME.hands[MY_IDX][GAME.hands[MY_IDX].length-1];
   sysMsg(ME.name+' drew a card.');
@@ -840,10 +836,9 @@ async function onDraw(){
 }
 async function endTurn(){if(!GAME||GAME.currentPlayer!==MY_IDX||GAME.gameOver)return;GAME.drawnThisTurn=false;GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;E('endb').classList.remove('show');advance();await pushGame();}
 
-// UNO (Pre-Call Logic)
+// UNO
 async function callUno(){
   if (!GAME || GAME.gameOver) return;
-  // PRE-CALL: You have 2 cards. You say UNO before playing.
   if (GAME.hands[MY_IDX].length === 2) {
     GAME.unoCalledBy = MY_IDX; 
     shout('UNO!');
@@ -853,7 +848,6 @@ async function callUno(){
     try { await DB.ref('/games/' + ROOM.id).update(updates); } catch(e) {}
     return;
   }
-  // LATE CALL: You have 1 card. Too late.
   if (GAME.hands[MY_IDX].length === 1) {
     if (GAME.unoVulnerable === MY_IDX) {
         toast("Too late! You must say UNO before playing.");
@@ -865,7 +859,7 @@ async function callUno(){
 function openColorModal(){E('ov').style.display='block';E('colm').style.display='block';}
 async function pickColor(col){closeModals();GAME.activeColor=col;GAME.pendingWild=false;const top=GAME.discard[GAME.discard.length-1];sysMsg(ME.name+' chose '+col.toUpperCase());applyEffect(top,MY_IDX);advance();await pushGame();}
 
-// CPU (Fixed Stacking)
+// CPU
 function cpuBest(who){const cnt={red:0,blue:0,green:0,yellow:0};GAME.hands[who].forEach(c=>{if(c.c!=='wild')cnt[c.c]++;});return COLORS.reduce((a,b)=>cnt[a]>=cnt[b]?a:b);}
 function cpuPri(c){if(c.v==='wild4')return 9;if(c.v==='draw2')return 8;if(c.v==='skip')return 7;if(c.v==='reverse')return 6;if(c.v==='wild')return 5;return parseInt(c.v)||0;}
 async function runCPU(who,seq){
@@ -878,7 +872,6 @@ async function runCPU(who,seq){
     const match=GAME.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlayAfterPenalty(c));
     if(match.length){match.sort((a,b)=>cpuPri(b.c)-cpuPri(a.c));await cpuPlay(who,match[0].i);}
     else{
-      // Reset stack after drawing
       GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; 
       sysMsg(p.name+' no match — passes.');advance();await pushGame();
     }
@@ -887,7 +880,6 @@ async function runCPU(who,seq){
   const pl=GAME.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlay(c,who));
   if(!pl.length){drawLocal(who,1);const d=GAME.hands[who][GAME.hands[who].length-1];if(canPlay(d,who))await cpuPlay(who,GAME.hands[who].length-1);else{sysMsg(p.name+' draws and passes.');advance();await pushGame();}return;}
   
-  // Bot Strict UNO: Say it BEFORE playing
   if (GAME.hands[who].length === 2) {
       GAME.unoCalledBy = who;
       shout('UNO!');
@@ -900,7 +892,7 @@ async function runCPU(who,seq){
 async function cpuPlay(who,idx){
   if(!GAME||!ROOM||GAME.gameOver)return;
   
-  // FIX: If bot drew a penalty, clear the stack before playing the card.
+  // FIX: Clear stack if penalty was drawn
   if (GAME.drawnPenalty) {
       GAME.drawStack = 0;
       GAME.drawType = null;
@@ -914,15 +906,12 @@ async function cpuPlay(who,idx){
   GAME.handCounts=GAME.hands.map(h=>h.length);
   const p=ROOM.players[who];sysMsg(p.name+' played '+cardLbl(card)+(card.c!=='wild'?' ('+card.c+')':''));
   
-  // Check Strict Logic (Did bot say it?)
   if (GAME.hands[who].length === 1) {
       if (GAME.unoCalledBy !== who) {
-          // Bot forgot! (Should be rare with logic above, but safety net)
           GAME.unoVulnerable = who;
           setTimeout(() => autoPenaltyCheck(who), 2500);
       } else {
-          // Bot said it, safe.
-          GAME.unoCalledBy = -1; // Reset for next time
+          GAME.unoCalledBy = -1;
       }
   }
 
@@ -941,7 +930,7 @@ function renderGame(){
   if(!GAME||!ROOM)return;
   renderOpps();renderHand();renderCenter();renderScores();
   const h=GAME.hands[MY_IDX]||[];
-  const canUno = (h.length === 2); // Can say UNO if I have 2 cards
+  const canUno = (h.length === 2);
   E('unob').classList.toggle('fd',!canUno);
 }
 function renderOpps(){
