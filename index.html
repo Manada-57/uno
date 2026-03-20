@@ -543,7 +543,7 @@ function renderRoomLobby(){
   for(let i=0;i<ROOM.maxPlayers;i++){
     const p=ROOM.players[i],div=document.createElement('div');
     if(p){div.className='slot f'+(p.isHost?' h':'');const tag=p.isHost?'host':p.isBot?'bot':p.id===MY_PID?'me':'';const tagTxt=p.isHost?'\u{1F451} Host':p.isBot?'\u{1F916} Bot':p.id===MY_PID?'\u2726 You':'';div.innerHTML='<div class="sav" style="background:'+p.color+'">'+p.initial+'</div><div class="snm">'+esc(p.name)+'</div><div class="stg '+tag+'">'+tagTxt+'</div>';}
-    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d)">+</div><div class="stg" style="color:var(--d)">Open</div>';}
+    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d')">+</div><div class="stg" style="color:var(--d)">Open</div>';}
     sg.appendChild(div);
   }
   const btn=E('stbtn'),isH=imHost(),can=ROOM.players.length>=2;
@@ -725,7 +725,7 @@ async function autoPenaltyCheck(playerIdx) {
     }
 }
 
-// PLAY CARD (Strict UNO Rule)
+// PLAY CARD (Fixed Stacking Bug)
 async function playCard(idx){
   if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX)return;
   const card=GAME.hands[MY_IDX][idx];if(!card)return;
@@ -733,7 +733,14 @@ async function playCard(idx){
   if(!ok){toast("Can't play that card!");return;}
   GAME.hands[MY_IDX].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;
   if(card.c!=='wild')GAME.activeColor=card.c;
-  GAME.drawnThisTurn=false;GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;
+  
+  // We do NOT reset drawStack/drawType here anymore.
+  // If we are stacking (+2 on +2), we want to KEEP the previous stack.
+  // The applyEffect function will ADD to the stack.
+  // The stack is only cleared when a player finally DRAWS (in onDraw/runCPU).
+  
+  GAME.drawnThisTurn=false;
+  GAME.drawnPenalty=false;
   
   // STRICT UNO CHECK
   GAME.handCounts = GAME.hands.map(h => h.length);
@@ -791,6 +798,7 @@ async function onDraw(){
       gst('Drew '+total+' \u2014 play a matching card or end turn.');
       E('endb').classList.add('show');
     } else {
+      // Reset stack after drawing
       GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; GAME.drawnThisTurn=false;
       gst('Drew '+total+' \u2014 no match. Card kept, turn passed.');
       advance();
@@ -842,7 +850,7 @@ async function callUno(){
 function openColorModal(){E('ov').style.display='block';E('colm').style.display='block';}
 async function pickColor(col){closeModals();GAME.activeColor=col;GAME.pendingWild=false;const top=GAME.discard[GAME.discard.length-1];sysMsg(ME.name+' chose '+col.toUpperCase());applyEffect(top,MY_IDX);advance();await pushGame();}
 
-// CPU (Strict Logic)
+// CPU (Fixed Stacking)
 function cpuBest(who){const cnt={red:0,blue:0,green:0,yellow:0};GAME.hands[who].forEach(c=>{if(c.c!=='wild')cnt[c.c]++;});return COLORS.reduce((a,b)=>cnt[a]>=cnt[b]?a:b);}
 function cpuPri(c){if(c.v==='wild4')return 9;if(c.v==='draw2')return 8;if(c.v==='skip')return 7;if(c.v==='reverse')return 6;if(c.v==='wild')return 5;return parseInt(c.v)||0;}
 async function runCPU(who,seq){
@@ -854,7 +862,11 @@ async function runCPU(who,seq){
     drawLocal(who,GAME.drawStack);GAME.drawnPenalty=true;sysMsg(p.name+' draws '+GAME.drawStack+' (penalty).');
     const match=GAME.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlayAfterPenalty(c));
     if(match.length){match.sort((a,b)=>cpuPri(b.c)-cpuPri(a.c));await cpuPlay(who,match[0].i);}
-    else{GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;sysMsg(p.name+' no match \u2014 passes.');advance();await pushGame();}
+    else{
+      // Reset stack after drawing
+      GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; 
+      sysMsg(p.name+' no match \u2014 passes.');advance();await pushGame();
+    }
     return;
   }
   const pl=GAME.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlay(c,who));
@@ -873,7 +885,11 @@ async function runCPU(who,seq){
 async function cpuPlay(who,idx){
   if(!GAME||!ROOM||GAME.gameOver)return;
   const card=GAME.hands[who][idx];GAME.hands[who].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;if(card.c!=='wild')GAME.activeColor=card.c;
-  GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;GAME.handCounts=GAME.hands.map(h=>h.length);
+  
+  // Do NOT reset stack here (stacking logic)
+  GAME.drawnPenalty=false;
+  
+  GAME.handCounts=GAME.hands.map(h=>h.length);
   const p=ROOM.players[who];sysMsg(p.name+' played '+cardLbl(card)+(card.c!=='wild'?' ('+card.c+')':''));
   
   // Check Strict Logic (Did bot say it?)
