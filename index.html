@@ -110,17 +110,17 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 #game{background:var(--bg);}
 .gn{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(10,10,20,.88);border-bottom:1px solid var(--b);backdrop-filter:blur(10px);position:sticky;top:0;z-index:40;}
 .gl{font-family:'Bebas Neue',cursive;font-size:24px;letter-spacing:4px;text-shadow:0 0 16px rgba(247,197,32,.4),2px 2px 0 var(--red);}
-.sr2{display:flex;gap:6px;flex-wrap:wrap;}
+.sr2{display:flex;gap:4px;flex-wrap:wrap;max-width:60vw;overflow-x:auto;}
 .sp{display:flex;align-items:center;gap:5px;background:var(--s);border:1px solid var(--b);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;}
 .sp.act{border-color:rgba(247,197,32,.5);background:rgba(247,197,32,.08);}
 .sp-n{color:var(--m);}
 .sp-p{color:var(--gold);}
 #gs{background:rgba(0,0,0,.45);border-bottom:1px solid var(--b);padding:7px 20px;text-align:center;font-size:13px;font-weight:700;color:rgba(255,255,255,.9);min-height:32px;}
 #board{padding:8px 12px;display:flex;flex-direction:column;gap:8px;}
-.oz{background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:13px;padding:9px 12px;display:flex;align-items:center;gap:10px;transition:border-color .25s;}
+.oz{background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:10px;padding:7px 10px;display:flex;align-items:center;gap:8px;transition:border-color .25s;}
 .oz.at{border-color:rgba(247,197,32,.4);background:rgba(247,197,32,.04);}
 .om{display:flex;flex-direction:column;gap:2px;min-width:64px;}
-.oav{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;border:2px solid rgba(255,255,255,.15);margin-bottom:3px;}
+.oav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;border:2px solid rgba(255,255,255,.15);margin-bottom:3px;}
 .onm{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--m);}
 .ocnt{font-size:18px;font-weight:900;line-height:1;}
 .ouno{display:none;font-size:9px;font-weight:900;color:var(--gold);letter-spacing:1px;background:rgba(247,197,32,.15);border-radius:4px;padding:1px 5px;margin-top:2px;}
@@ -378,7 +378,7 @@ const LBL={skip:'\u2298',reverse:'\u21c4',draw2:'+2',wild:'\u2605',wild4:'+4'};
 const CGRAD={red:'linear-gradient(150deg,#E8372A,#9E1F14)',blue:'linear-gradient(150deg,#1E7FD8,#0D4280)',green:'linear-gradient(150deg,#26B152,#145C2C)',yellow:'linear-gradient(150deg,#F7C520,#BF980E)'};
 const CHEX={red:'#E8372A',blue:'#1E7FD8',green:'#26B152',yellow:'#F7C520'};
 const AVC=['#E8372A','#1E7FD8','#26B152','#F7C520','#9B59B6','#E67E22','#1ABC9C','#E91E8C','#00BCD4','#FF5722'];
-const BNMS=['Bot Ace','Bot Blaze','Bot Coda','Bot Dash','Bot Echo','Bot Flux','Bot Grit','Bot Hex'];
+const BNMS=['Bot Ace','Bot Blaze','Bot Coda','Bot Dash','Bot Echo','Bot Flux','Bot Grit','Bot Hex','Bot Iris','Bot Jazz'];
 
 // STATE
 let ME={name:'',color:'',initial:''};
@@ -410,7 +410,7 @@ function shout(t){const e=E('us');e.textContent=t;e.style.display='block';e.styl
 function gst(m){const e=E('gs');if(e)e.textContent=m;}
 function updateNavUI(){E('nav-av').style.background=ME.color;E('nav-av').textContent=ME.initial;E('nav-nm').textContent=ME.name;}
 function genCode(){return 'UNO-'+(Math.random()*1000|0).toString(36).toUpperCase().padStart(3,'X');}
-function imHost(){return ROOM&&ROOM.players[0]&&ROOM.players[0].id===MY_PID;}
+function imHost(){if(!ROOM||!MY_PID)return false;const me=ROOM.players.find(p=>p.id===MY_PID);return me?me.isHost===true:false;}
 
 // SPLASH
 function goToLobby(){
@@ -570,30 +570,84 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);
 // Shared state: everything else at /games/{id}/state (no hand data)
 async function pushGame(){
   if(!ROOM||!GAME)return;
-  const shared={deck:GAME.deck,discard:GAME.discard,handCounts:GAME.hands.map(h=>h.length),currentPlayer:GAME.currentPlayer,dir:GAME.dir,activeColor:GAME.activeColor,activeValue:GAME.activeValue,drawStack:GAME.drawStack,drawType:GAME.drawType,drawnPenalty:GAME.drawnPenalty,drawnThisTurn:GAME.drawnThisTurn,pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,lastWinPts:GAME.lastWinPts||0,seq:(GAME.seq||0)+1};
-  const writes={['/games/'+ROOM.id+'/state']:shared};
-  GAME.hands.forEach((h,i)=>{writes['/games/'+ROOM.id+'/hands/'+i]=h||[];});
-  await DB.ref().update(writes);
+  // KEY RULE: each client only writes the hands it actually owns.
+  // Writing opponent hands as [] would wipe their real cards.
+  // State (no hands) is written by whoever's turn it is.
+  // Hands are written separately — only YOUR hand, plus bot hands if you're host.
+  const updates={};
+  // Shared game state (no hand data — just counts)
+  updates['/games/'+ROOM.id+'/state']={
+    handCounts:GAME.hands.map(h=>h.length),
+    currentPlayer:GAME.currentPlayer,dir:GAME.dir,
+    activeColor:GAME.activeColor,activeValue:GAME.activeValue,
+    drawStack:GAME.drawStack,drawType:GAME.drawType,
+    drawnPenalty:GAME.drawnPenalty,drawnThisTurn:GAME.drawnThisTurn,
+    pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
+    unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,
+    cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,
+    lastWinPts:GAME.lastWinPts||0,seq:(GAME.seq||0)+1,
+    deck:GAME.deck,discard:GAME.discard
+  };
+  // Write MY hand (the one I actually have correct data for)
+  updates['/games/'+ROOM.id+'/hands/'+MY_IDX]=GAME.hands[MY_IDX]||[];
+  // Host also writes bot hands (host is the only one with correct bot hand data)
+  if(imHost()){
+    ROOM.players.forEach((p,i)=>{
+      if(p.isBot) updates['/games/'+ROOM.id+'/hands/'+i]=GAME.hands[i]||[];
+    });
+  }
+  await DB.ref().update(updates);
 }
 
 // GAME LISTENER
 function listenGame(){
   if(gameSub)gameSub.off();
-  gameSub=dbRef('/games/'+ROOM.id+'/state');
-  gameSub.on('value',async snap=>{
+  // Listen to the PARENT /games/{id} node so we get state + hands together
+  // This is one snapshot — no race condition between state and hand reads
+  gameSub=dbRef('/games/'+ROOM.id);
+  gameSub.on('value',snap=>{
     if(!snap.exists())return;
-    const s=snap.val();
-    const myHandSnap=await dbGet('/games/'+ROOM.id+'/hands/'+MY_IDX);
-    const myHand=myHandSnap?toArr(myHandSnap):[];
-    let allHands=[];
-    if(imHost()){const hD=await dbGet('/games/'+ROOM.id+'/hands')||{};for(let i=0;i<ROOM.players.length;i++)allHands.push(toArr(hD[i]));}
-    else{for(let i=0;i<ROOM.players.length;i++)allHands.push(i===MY_IDX?myHand:[]);}
-    GAME={...s,hands:allHands,discard:toArr(s.discard),deck:toArr(s.deck),scores:toArr(s.scores),handCounts:toArr(s.handCounts)};
+    const gameData=snap.val();
+    const s=gameData.state;
+    if(!s)return;
+    const n=ROOM.players.length;
+    const handsData=gameData.hands||{};
+    // Build hands array: use Firebase data for all players
+    // My own hand: always from Firebase (authoritative)
+    // Opponent hands: from Firebase (written by them or host)
+    const allHands=[];
+    for(let i=0;i<n;i++){
+      allHands.push(toArr(handsData[i]));
+    }
+    // handCounts is the source of truth for display — hands array is for gameplay
+    const handCounts=toArr(s.handCounts);
+    GAME={
+      ...s,
+      hands:allHands,
+      discard:toArr(s.discard),
+      deck:toArr(s.deck),
+      scores:toArr(s.scores),
+      handCounts:handCounts
+    };
     renderGame();
-    // HOST runs CPU turns
-    if(imHost()&&!GAME.gameOver){const cp=ROOM.players[GAME.currentPlayer];if(cp&&cp.isBot)setTimeout(()=>runCPU(GAME.currentPlayer,s.seq),900+Math.random()*500);}
-    if(!GAME.gameOver){if(GAME.currentPlayer===MY_IDX){if(GAME.drawStack>0&&!GAME.drawnPenalty)gst('You must draw '+GAME.drawStack+' OR counter with +'+(GAME.drawType==='draw2'?2:4)+'!');else gst('Your turn \u2014 play a card or draw.');}else{const cp=ROOM.players[GAME.currentPlayer];gst(cp?cp.name+"'s turn...":'Waiting...');}}
-    if(GAME.gameOver){const w=GAME.handCounts.findIndex(c=>c===0);if(w>=0)showWin(w,GAME.lastWinPts||0);}
+    // Host runs CPU turns
+    if(imHost()&&!GAME.gameOver){
+      const cp=ROOM.players[GAME.currentPlayer];
+      if(cp&&cp.isBot)setTimeout(()=>runCPU(GAME.currentPlayer,s.seq),900+Math.random()*500);
+    }
+    if(!GAME.gameOver){
+      if(GAME.currentPlayer===MY_IDX){
+        if(GAME.drawStack>0&&!GAME.drawnPenalty)gst('You must draw '+GAME.drawStack+' OR counter with +'+(GAME.drawType==='draw2'?2:4)+'!');
+        else gst('Your turn \u2014 play a card or draw.');
+      }else{
+        const cp=ROOM.players[GAME.currentPlayer];
+        gst(cp?cp.name+"'s turn...":'Waiting...');
+      }
+    }
+    if(GAME.gameOver){
+      const w=GAME.handCounts.findIndex(c=>c===0);
+      if(w>=0)showWin(w,GAME.lastWinPts||0);
+    }
   });
 }
 function stopGameListener(){if(gameSub){gameSub.off();gameSub=null;}}
@@ -611,7 +665,23 @@ async function startGame(){
   if(first.v==='reverse')GAME.dir=-1;else if(first.v==='skip')GAME.currentPlayer=1;else if(first.v==='draw2'){GAME.drawStack=2;GAME.drawType='draw2';}
   stopRoomListener();
   await dbUpd('/rooms/'+ROOM.id,{status:'playing'});
-  await pushGame();
+  // Host writes ALL hands at game start (initial deal)
+  // After this, each player writes only their own hand on each turn
+  const initUpdates={};
+  initUpdates['/games/'+ROOM.id+'/state']={
+    handCounts:GAME.hands.map(h=>h.length),
+    currentPlayer:GAME.currentPlayer,dir:GAME.dir,
+    activeColor:GAME.activeColor,activeValue:GAME.activeValue,
+    drawStack:GAME.drawStack,drawType:GAME.drawType,
+    drawnPenalty:GAME.drawnPenalty,drawnThisTurn:GAME.drawnThisTurn,
+    pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
+    unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,
+    cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,
+    lastWinPts:0,seq:1,deck:GAME.deck,discard:GAME.discard
+  };
+  // Write every player's starting hand
+  GAME.hands.forEach((h,i)=>{ initUpdates['/games/'+ROOM.id+'/hands/'+i]=h; });
+  await DB.ref().update(initUpdates);
   dbRef('/games/'+ROOM.id).onDisconnect().remove();
   enterGame();
 }
@@ -687,8 +757,22 @@ async function onDraw(){
   }
   drawLocal(MY_IDX,1);GAME.drawnThisTurn=true;const drew=GAME.hands[MY_IDX][GAME.hands[MY_IDX].length-1];
   sysMsg(ME.name+' drew a card.');
-  if(canPlay(drew,MY_IDX)){gst('Drew a card \u2014 play it or end your turn.');E('endb').classList.add('show');}
-  else{gst('No match \u2014 turn passed.');GAME.drawnThisTurn=false;advance();}
+  if(canPlay(drew,MY_IDX)){
+    // RULE 5: drawn card matches — must play it immediately (no choice)
+    const drewIdx=GAME.hands[MY_IDX].length-1;
+    sysMsg(ME.name+' drew and must play it!');
+    gst('Drew a matching card — playing it automatically...');
+    // Small delay so player can see what was drawn before it plays
+    await pushGame(); // push the drawn hand first
+    setTimeout(async()=>{
+      if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX)return;
+      await playCard(drewIdx);
+    },700);
+    return;
+  } else {
+    gst('No match — turn passed.');
+    GAME.drawnThisTurn=false;advance();
+  }
   await pushGame();
 }
 async function endTurn(){if(!GAME||GAME.currentPlayer!==MY_IDX||GAME.gameOver)return;GAME.drawnThisTurn=false;GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;E('endb').classList.remove('show');advance();await pushGame();}
@@ -755,11 +839,13 @@ function renderGame(){
 function renderOpps(){
   const el=E('oe');if(!el)return;el.innerHTML='';
   const others=ROOM.players.map((_,i)=>i).filter(i=>i!==MY_IDX);if(!others.length)return;
-  const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat('+Math.min(others.length,3)+',1fr);gap:8px;margin-bottom:8px;';
+  const grid=document.createElement('div');// For many opponents, use responsive grid that wraps nicely
+const cols = others.length <= 2 ? others.length : others.length <= 6 ? 3 : 4;
+grid.style.cssText='display:grid;grid-template-columns:repeat('+cols+',1fr);gap:6px;margin-bottom:8px;';
   others.forEach(i=>{
     const p=ROOM.players[i],cnt=(GAME.handCounts&&GAME.handCounts[i])||0,act=GAME.currentPlayer===i;
     const div=document.createElement('div');div.className='oz'+(act?' at':'');
-    let backs='';const show=Math.min(cnt,10);for(let j=0;j<show;j++)backs+='<div class="cb3">UNO</div>';if(cnt>show)backs+='<div style="font-size:10px;color:var(--d);align-self:center;padding-left:4px;">+'+(cnt-show)+'</div>';
+    let backs='';const maxShow=ROOM.players.length>6?5:8;const show=Math.min(cnt,maxShow);for(let j=0;j<show;j++)backs+='<div class="cb3">UNO</div>';if(cnt>show)backs+='<div style="font-size:10px;color:var(--d);align-self:center;padding-left:4px;">+'+(cnt-show)+'</div>';
     div.innerHTML='<div class="om"><div class="oav" style="background:'+p.color+'">'+p.initial+'</div><div class="onm">'+esc(p.name)+'</div><div class="ocnt">'+cnt+'</div><div class="ouno" style="display:'+(cnt===1?'block':'none')+'">UNO!</div></div><div class="oc">'+backs+'</div>';
     grid.appendChild(div);
   });
