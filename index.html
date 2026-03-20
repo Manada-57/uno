@@ -581,7 +581,8 @@ async function pushGame(){
     currentPlayer:GAME.currentPlayer,dir:GAME.dir,
     activeColor:GAME.activeColor,activeValue:GAME.activeValue,
     drawStack:GAME.drawStack,drawType:GAME.drawType,
-    drawnPenalty:GAME.drawnPenalty,drawnThisTurn:GAME.drawnThisTurn,
+    drawnPenalty:GAME.drawnPenalty,
+    // drawnThisTurn is intentionally NOT stored — it resets to false for each new turn
     pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
     unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,
     cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,
@@ -627,7 +628,8 @@ function listenGame(){
       discard:toArr(s.discard),
       deck:toArr(s.deck),
       scores:toArr(s.scores),
-      handCounts:handCounts
+      handCounts:handCounts,
+      drawnThisTurn:false  // always reset on new state — each turn starts fresh
     };
     renderGame();
     // Host runs CPU turns
@@ -638,10 +640,11 @@ function listenGame(){
     if(!GAME.gameOver){
       if(GAME.currentPlayer===MY_IDX){
         if(GAME.drawStack>0&&!GAME.drawnPenalty)gst('You must draw '+GAME.drawStack+' OR counter with +'+(GAME.drawType==='draw2'?2:4)+'!');
+        else if(GAME.drawnThisTurn)gst('You drew — play the card or end your turn.');
         else gst('Your turn \u2014 play a card or draw.');
       }else{
         const cp=ROOM.players[GAME.currentPlayer];
-        gst(cp?cp.name+"'s turn...":'Waiting...');
+        gst(cp?(cp.name+"'s turn \u2014 waiting..."):'Waiting...');
       }
     }
     if(GAME.gameOver){
@@ -673,7 +676,8 @@ async function startGame(){
     currentPlayer:GAME.currentPlayer,dir:GAME.dir,
     activeColor:GAME.activeColor,activeValue:GAME.activeValue,
     drawStack:GAME.drawStack,drawType:GAME.drawType,
-    drawnPenalty:GAME.drawnPenalty,drawnThisTurn:GAME.drawnThisTurn,
+    drawnPenalty:false,
+    // drawnThisTurn not stored — resets locally on each new state
     pendingWild:GAME.pendingWild,gameOver:GAME.gameOver,
     unoCalledBy:GAME.unoCalledBy,unoVulnerable:GAME.unoVulnerable,
     cpuAutoUno:GAME.cpuAutoUno||{},scores:GAME.scores,
@@ -747,33 +751,49 @@ function showWin(who,pts){
 // DRAW
 async function onDraw(){
   if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX||GAME.drawnThisTurn||GAME.pendingWild)return;
+
+  // PENALTY DRAW (+2 or +4 hit)
   if(GAME.drawStack>0&&!GAME.drawnPenalty){
-    const total=GAME.drawStack;drawLocal(MY_IDX,total);GAME.drawnPenalty=true;GAME.drawnThisTurn=true;
+    const total=GAME.drawStack;
+    drawLocal(MY_IDX,total);
+    GAME.drawnPenalty=true; GAME.drawnThisTurn=true;
     sysMsg(ME.name+' drew '+total+' cards (penalty).');
     const hasMatch=GAME.hands[MY_IDX].some(c=>canPlayAfterPenalty(c));
-    if(hasMatch){gst('Drew '+total+' \u2014 play matching card or end turn.');E('endb').classList.add('show');}
-    else{gst('Drew '+total+' \u2014 no match. Turn passed.');GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;GAME.drawnThisTurn=false;advance();}
-    await pushGame();return;
+    if(hasMatch){
+      await pushGame();
+      gst('Drew '+total+' \u2014 play a matching card or end turn.');
+      E('endb').classList.add('show');
+    } else {
+      GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; GAME.drawnThisTurn=false;
+      gst('Drew '+total+' \u2014 no match. Card kept, turn passed.');
+      advance();
+      await pushGame();
+    }
+    return;
   }
-  drawLocal(MY_IDX,1);GAME.drawnThisTurn=true;const drew=GAME.hands[MY_IDX][GAME.hands[MY_IDX].length-1];
+
+  // NORMAL DRAW (1 card)
+  drawLocal(MY_IDX,1);
+  const drew=GAME.hands[MY_IDX][GAME.hands[MY_IDX].length-1];
   sysMsg(ME.name+' drew a card.');
+
   if(canPlay(drew,MY_IDX)){
-    // RULE 5: drawn card matches — must play it immediately (no choice)
-    const drewIdx=GAME.hands[MY_IDX].length-1;
-    sysMsg(ME.name+' drew and must play it!');
-    gst('Drew a matching card — playing it automatically...');
-    // Small delay so player can see what was drawn before it plays
-    await pushGame(); // push the drawn hand first
+    // RULE 5: drawn card matches - MUST play immediately
+    // Push hand first so opponents see +1 count, then auto-play after short delay
+    GAME.drawnThisTurn=true;
+    await pushGame();
+    gst('Drew a matching card \u2014 playing it automatically...');
     setTimeout(async()=>{
       if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX)return;
-      await playCard(drewIdx);
+      await playCard(GAME.hands[MY_IDX].length-1);
     },700);
-    return;
   } else {
-    gst('No match — turn passed.');
-    GAME.drawnThisTurn=false;advance();
+    // No match - card stays in hand, turn passes to next player
+    GAME.drawnThisTurn=false;
+    advance();
+    await pushGame();
+    gst('No match \u2014 card kept in hand, turn passed.');
   }
-  await pushGame();
 }
 async function endTurn(){if(!GAME||GAME.currentPlayer!==MY_IDX||GAME.gameOver)return;GAME.drawnThisTurn=false;GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;E('endb').classList.remove('show');advance();await pushGame();}
 
