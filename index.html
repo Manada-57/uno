@@ -787,28 +787,40 @@ function showWin(who,pts){
 // DRAW
 async function onDraw(){
   if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX||GAME.drawnThisTurn||GAME.pendingWild)return;
+  
+  // CASE: We are being hit by a +2 or +4
   if(GAME.drawStack>0&&!GAME.drawnPenalty){
     const total=GAME.drawStack;
     drawLocal(MY_IDX,total);
-    GAME.drawnPenalty=true; GAME.drawnThisTurn=true;
+    GAME.drawnPenalty=true; 
+    GAME.drawnThisTurn=true;
     sysMsg(ME.name+' drew '+total+' cards (penalty).');
+    
     const hasMatch=GAME.hands[MY_IDX].some(c=>canPlayAfterPenalty(c));
+    
     if(hasMatch){
       await pushGame();
       gst('Drew '+total+' — play a matching card or end turn.');
       E('endb').classList.add('show');
     } else {
-      // Reset stack after drawing
-      GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; GAME.drawnThisTurn=false;
+      // FIX: Reset the stack and turn variables because the penalty is served
+      GAME.drawStack=0; 
+      GAME.drawType=null; 
+      GAME.drawnPenalty=false; 
+      GAME.drawnThisTurn=false;
+      
       gst('Drew '+total+' — no match. Card kept, turn passed.');
-      advance();
+      advance(); // Turn ends
       await pushGame();
     }
     return;
   }
+  
+  // CASE: Normal Draw (no active penalty)
   drawLocal(MY_IDX,1);
   const drew=GAME.hands[MY_IDX][GAME.hands[MY_IDX].length-1];
   sysMsg(ME.name+' drew a card.');
+  
   if(canPlay(drew,MY_IDX)){
     GAME.drawnThisTurn=true;
     await pushGame();
