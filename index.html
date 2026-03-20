@@ -543,7 +543,7 @@ function renderRoomLobby(){
   for(let i=0;i<ROOM.maxPlayers;i++){
     const p=ROOM.players[i],div=document.createElement('div');
     if(p){div.className='slot f'+(p.isHost?' h':'');const tag=p.isHost?'host':p.isBot?'bot':p.id===MY_PID?'me':'';const tagTxt=p.isHost?'👑 Host':p.isBot?'🤖 Bot':p.id===MY_PID?'✦ You':'';div.innerHTML='<div class="sav" style="background:'+p.color+'">'+p.initial+'</div><div class="snm">'+esc(p.name)+'</div><div class="stg '+tag+'">'+tagTxt+'</div>';}
-    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d)">+</div><div class="stg" style="color:var(--d)">Open</div>';}
+    else{div.className='slot e';div.innerHTML='<div style="font-size:24px;color:var(--d')">+</div><div class="stg" style="color:var(--d)">Open</div>';}
     sg.appendChild(div);
   }
   const btn=E('stbtn'),isH=imHost(),can=ROOM.players.length>=2;
@@ -731,16 +731,19 @@ async function playCard(idx){
   const card=GAME.hands[MY_IDX][idx];if(!card)return;
   const ok=GAME.drawnPenalty?canPlayAfterPenalty(card):canPlay(card,MY_IDX);
   if(!ok){toast("Can't play that card!");return;}
+  
+  // FIX: If we just drew a penalty, the stack is cleared before playing.
+  // The penalty phase is over. We are now playing a regular card from our hand.
+  if (GAME.drawnPenalty) {
+      GAME.drawStack = 0;
+      GAME.drawType = null;
+      GAME.drawnPenalty = false;
+  }
+
   GAME.hands[MY_IDX].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;
   if(card.c!=='wild')GAME.activeColor=card.c;
   
-  // We do NOT reset drawStack/drawType here anymore.
-  // If we are stacking (+2 on +2), we want to KEEP the previous stack.
-  // The applyEffect function will ADD to the stack.
-  // The stack is only cleared when a player finally DRAWS (in onDraw/runCPU).
-  
   GAME.drawnThisTurn=false;
-  GAME.drawnPenalty=false;
   
   // STRICT UNO CHECK
   GAME.handCounts = GAME.hands.map(h => h.length);
@@ -783,6 +786,7 @@ function showWin(who,pts){
   const p=ROOM.players[who];if(!p)return;const isMe=who===MY_IDX;
   E('we').textContent=isMe?'🎉':'😢';E('wt').textContent=isMe?'YOU WIN!':esc(p.name)+' WINS!';E('wsub').textContent=isMe?'Flawless victory!':'Better luck next time!';E('wp').textContent='+'+pts+' pts';E('ws').classList.add('show');sysMsg(p.name+' wins! 🏆 +'+pts+' pts');
 }
+
 // DRAW
 async function onDraw(){
   if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX||GAME.drawnThisTurn||GAME.pendingWild)return;
@@ -895,9 +899,16 @@ async function runCPU(who,seq){
 }
 async function cpuPlay(who,idx){
   if(!GAME||!ROOM||GAME.gameOver)return;
+  
+  // FIX: If bot drew a penalty, clear the stack before playing the card.
+  if (GAME.drawnPenalty) {
+      GAME.drawStack = 0;
+      GAME.drawType = null;
+      GAME.drawnPenalty = false;
+  }
+
   const card=GAME.hands[who][idx];GAME.hands[who].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;if(card.c!=='wild')GAME.activeColor=card.c;
   
-  // Do NOT reset stack here (stacking logic)
   GAME.drawnPenalty=false;
   
   GAME.handCounts=GAME.hands.map(h=>h.length);
