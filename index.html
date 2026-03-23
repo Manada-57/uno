@@ -121,12 +121,12 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 #gs{background:rgba(0,0,0,.45);border-bottom:1px solid var(--b);padding:5px 20px;text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.9);z-index:5;}
 
 .table-container{flex:1;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;width:100%;padding:10px;}
-.table-top{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;width:100%;height:35%;align-content:center;align-items:flex-start;}
+.table-top{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;width:100%;align-content:center;align-items:flex-start;max-height: 40%; overflow-y: auto;}
 .table-center{flex:1;display:flex;align-items:center;justify-content:center;position:relative;}
 .table-bottom{width:100%;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;}
 
 /* Player Slots on Table */
-.player-slot{display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:12px;padding:8px;min-width:120px;max-width:180px;transition:border-color .2s;}
+.player-slot{display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:12px;padding:8px;min-width:100px;max-width:150px;transition:border-color .2s;}
 .player-slot.active{border-color:rgba(247,197,32,.6);background:rgba(247,197,32,.05);box-shadow:0 0 15px rgba(247,197,32,.2);}
 .p-info{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
 .p-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.15);}
