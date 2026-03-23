@@ -11,12 +11,16 @@
 <style>
 :root{--bg:#0A0A14;--s:#12121F;--s2:#1A1A2E;--s3:#22223A;--b:rgba(255,255,255,.07);--b2:rgba(255,255,255,.14);--t:#F0F0F8;--m:rgba(240,240,248,.5);--d:rgba(240,240,248,.22);--gold:#F7C520;--gd:#C49B10;--red:#E8372A;--r:14px;--rs:8px;--rl:20px;--rx:28px;--cw:58px;--ch:86px;--cr:9px;}
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body{width:100%;min-height:100vh;background:var(--bg);color:var(--t);font-family:'Outfit',sans-serif;overflow-x:hidden;}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--t);font-family:'Outfit',sans-serif;overflow:hidden;}
 canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
-.screen{display:none;position:relative;z-index:10;width:100%;min-height:100vh;flex-direction:column;}
+
+/* Layout */
+.screen{display:none;position:relative;z-index:10;width:100%;height:100%;flex-direction:column;}
 .screen.active{display:flex;}
 #splash{align-items:center;justify-content:center;}
 .si{display:flex;flex-direction:column;align-items:center;gap:22px;padding:40px 20px;max-width:360px;width:100%;}
+
+/* Common */
 .logo{font-family:'Bebas Neue',cursive;font-size:110px;line-height:.9;letter-spacing:8px;text-shadow:0 0 60px rgba(247,197,32,.4),6px 6px 0 var(--red),-3px -3px 0 #B8971A;animation:fl 3s ease-in-out infinite;}
 @keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .logo-sub{font-size:13px;font-weight:700;letter-spacing:6px;color:var(--m);text-transform:uppercase;}
@@ -40,11 +44,13 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 .btn-sm{padding:8px 14px;font-size:12px;}
 .btn-icon{padding:10px;border-radius:10px;background:var(--s3);color:var(--t);border:1px solid var(--b);font-size:18px;}
 .btn-danger{background:rgba(232,55,42,.12);color:#F08078;border:1.5px solid rgba(232,55,42,.28);}
-.nav{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(10,10,20,.9);border-bottom:1px solid var(--b);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(10,10,20,.9);border-bottom:1px solid var(--b);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;flex-shrink:0;}
 .nav-logo{font-family:'Bebas Neue',cursive;font-size:30px;letter-spacing:4px;text-shadow:0 0 20px rgba(247,197,32,.4),3px 3px 0 var(--red);}
 .nav-user{display:flex;align-items:center;gap:10px;}
 .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.2);flex-shrink:0;}
-#lobby{align-items:center;}
+
+/* Lobby */
+#lobby{align-items:center;overflow-y:auto;}
 .lw{width:100%;max-width:900px;padding:20px 16px 40px;display:flex;flex-direction:column;gap:20px;}
 .stl{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--m);margin-bottom:10px;}
 .qg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -61,7 +67,7 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 .rn2{font-size:14px;font-weight:700;}
 .rm{font-size:12px;color:var(--m);margin-top:2px;}
 .es{text-align:center;padding:40px 20px;color:var(--m);}
-#create{align-items:center;}
+#create{align-items:center;overflow-y:auto;}
 .fw{width:100%;max-width:520px;padding:20px 16px 40px;}
 .fb{background:var(--s);border:1.5px solid var(--b2);border-radius:var(--rx);padding:30px 26px;box-shadow:0 8px 32px rgba(0,0,0,.6);}
 .ft{font-family:'Bebas Neue',cursive;font-size:34px;letter-spacing:3px;margin-bottom:4px;}
@@ -81,7 +87,7 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 .tog::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s;}
 .tog.on::after{transform:translateX(20px);}
 .aon{font-size:11px;font-weight:800;color:#26B152;padding:3px 10px;background:rgba(38,177,82,.12);border-radius:6px;}
-#room{align-items:center;}
+#room{align-items:center;overflow-y:auto;}
 .rw{width:100%;max-width:700px;padding:20px 16px 40px;}
 .rh2{background:var(--s);border:1.5px solid var(--b);border-radius:var(--rx);padding:22px 26px;margin-bottom:14px;}
 .rht{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
@@ -107,49 +113,54 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 .sr{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rs);padding:10px 14px;margin-top:10px;}
 .sl{flex:1;font-size:11px;font-family:monospace;color:var(--m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .rcon{display:flex;gap:10px;flex-wrap:wrap;}
-#game{background:var(--bg);}
-.gn{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(10,10,20,.88);border-bottom:1px solid var(--b);backdrop-filter:blur(10px);position:sticky;top:0;z-index:40;}
+
+/* Game Table Layout */
+#game{background:var(--bg);display:flex;flex-direction:column;height:100vh;}
+.gn{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:rgba(10,10,20,.88);border-bottom:1px solid var(--b);backdrop-filter:blur(10px);z-index:40;flex-shrink:0;}
 .gl{font-family:'Bebas Neue',cursive;font-size:24px;letter-spacing:4px;text-shadow:0 0 16px rgba(247,197,32,.4),2px 2px 0 var(--red);}
-.sr2{display:flex;gap:4px;flex-wrap:wrap;max-width:60vw;overflow-x:auto;}
-.sp{display:flex;align-items:center;gap:5px;background:var(--s);border:1px solid var(--b);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;}
-.sp.act{border-color:rgba(247,197,32,.5);background:rgba(247,197,32,.08);}
-.sp-n{color:var(--m);}
-.sp-p{color:var(--gold);}
-#gs{background:rgba(0,0,0,.45);border-bottom:1px solid var(--b);padding:7px 20px;text-align:center;font-size:13px;font-weight:700;color:rgba(255,255,255,.9);min-height:32px;}
-#board{padding:8px 12px;display:flex;flex-direction:column;gap:8px;}
-.oz{background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:10px;padding:7px 10px;display:flex;align-items:center;gap:8px;transition:border-color .25s;}
-.oz.at{border-color:rgba(247,197,32,.4);background:rgba(247,197,32,.04);}
-.om{display:flex;flex-direction:column;gap:2px;min-width:64px;}
-.oav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;border:2px solid rgba(255,255,255,.15);margin-bottom:3px;}
-.onm{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--m);}
-.ocnt{font-size:18px;font-weight:900;line-height:1;}
-.ouno{display:none;font-size:9px;font-weight:900;color:var(--gold);letter-spacing:1px;background:rgba(247,197,32,.15);border-radius:4px;padding:1px 5px;margin-top:2px;}
-.oc{display:flex;gap:3px;flex-wrap:wrap;flex:1;}
-.cz{display:flex;align-items:center;justify-content:center;gap:24px;background:radial-gradient(ellipse 90% 80% at center,rgba(20,80,45,.7) 0%,rgba(10,40,25,.95) 100%);border:2px solid rgba(255,255,255,.05);border-radius:20px;padding:18px 28px;position:relative;}
-.cz::before{content:'';position:absolute;inset:7px;border:1px solid rgba(255,255,255,.04);border-radius:15px;pointer-events:none;}
-.pile{display:flex;flex-direction:column;align-items:center;gap:5px;}
-.pl{font-size:9px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);}
-.pc{font-size:10px;color:rgba(255,255,255,.3);font-weight:700;}
-.dp{width:var(--cw);height:var(--ch);border-radius:var(--cr);background:linear-gradient(145deg,#B83228,#6E1C15);border:3px solid rgba(255,255,255,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:2px;color:rgba(255,255,255,.25);box-shadow:3px 4px 0 rgba(0,0,0,.55);transition:transform .15s;position:relative;}
-.dp:hover:not(.nd){transform:translateY(-4px) rotate(-2deg);}
-.dp.nd{cursor:not-allowed;opacity:.5;}
-.dt{width:var(--cw);height:var(--ch);border-radius:var(--cr);border:3px solid rgba(255,255,255,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:3px 4px 0 rgba(0,0,0,.55);position:relative;}
+#gs{background:rgba(0,0,0,.45);border-bottom:1px solid var(--b);padding:5px 20px;text-align:center;font-size:12px;font-weight:700;color:rgba(255,255,255,.9);z-index:5;}
+
+.table-container{flex:1;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;width:100%;padding:10px;}
+.table-top{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;width:100%;height:35%;align-content:center;align-items:flex-start;}
+.table-center{flex:1;display:flex;align-items:center;justify-content:center;position:relative;}
+.table-bottom{width:100%;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;}
+
+/* Player Slots on Table */
+.player-slot{display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:12px;padding:8px;min-width:120px;max-width:180px;transition:border-color .2s;}
+.player-slot.active{border-color:rgba(247,197,32,.6);background:rgba(247,197,32,.05);box-shadow:0 0 15px rgba(247,197,32,.2);}
+.p-info{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.p-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.15);}
+.p-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px;}
+.p-cards-count{font-size:10px;color:var(--m);margin-bottom:4px;}
+.p-hand-preview{display:flex;justify-content:center;height:50px;width:100%;position:relative;}
+.card-mini{width:30px;height:45px;border-radius:4px;background:linear-gradient(135deg,#333 0%,#111 100%);border:1px solid rgba(255,255,255,.2);position:absolute;box-shadow:1px 1px 3px rgba(0,0,0,.5);}
+
+/* Center Play Area */
+.center-area{display:flex;align-items:center;justify-content:center;gap:24px;background:radial-gradient(ellipse 80% 60% at center,rgba(20,80,45,.6) 0%,rgba(10,40,25,.9) 100%);border:2px solid rgba(255,255,255,.05);border-radius:20px;padding:20px 40px;}
+.pile-group{display:flex;flex-direction:column;align-items:center;gap:5px;}
+.pile-label{font-size:9px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);}
+.draw-pile{width:var(--cw);height:var(--ch);border-radius:var(--cr);background:linear-gradient(145deg,#B83228,#6E1C15);border:3px solid rgba(255,255,255,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:2px;color:rgba(255,255,255,.25);box-shadow:3px 4px 0 rgba(0,0,0,.55);transition:transform .15s;}
+.draw-pile:hover:not(.nd){transform:translateY(-4px) rotate(-2deg);}
+.draw-pile.nd{cursor:not-allowed;opacity:.5;}
+.discard-pile{width:var(--cw);height:var(--ch);border-radius:var(--cr);border:3px solid rgba(255,255,255,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:3px 4px 0 rgba(0,0,0,.55);position:relative;}
 .dcc{position:absolute;font-family:'Bebas Neue',cursive;font-size:10px;}
 .dcc.tl{top:4px;left:5px;}
 .dcc.br{bottom:4px;right:5px;transform:rotate(180deg);}
-.cm2{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.turn-indicator{text-align:center;position:absolute;bottom:-30px;}
 #di{font-size:28px;}
-#cd{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,255,255,.45);transition:background .3s;}
-#tt{font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--m);text-transform:uppercase;text-align:center;}
-.pz{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:13px;padding:10px 12px;}
-.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.phl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--m);}
-#pc{font-size:11px;font-weight:700;color:var(--gold);}
-#ph{display:flex;gap:5px;flex-wrap:wrap;min-height:88px;align-items:center;}
+#cd{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,255,255,.45);margin-bottom:5px;}
+#tt{font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--m);text-transform:uppercase;}
+
+/* My Hand (Bottom) */
+.my-hand-area{width:100%;display:flex;flex-direction:column;align-items:center;padding-bottom:10px;}
+.hand-label{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--m);margin-bottom:8px;}
+.hand-container{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:100%;padding:0 10px;}
+
+/* Cards */
 .card{width:var(--cw);height:var(--ch);border-radius:var(--cr);border:2.5px solid rgba(255,255,255,.4);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;box-shadow:2px 3px 0 rgba(0,0,0,.5);transition:transform .18s cubic-bezier(.34,1.56,.64,1);position:relative;user-select:none;flex-shrink:0;overflow:hidden;}
 .card::before{content:'';position:absolute;inset:5px;border:1px solid rgba(255,255,255,.1);border-radius:5px;pointer-events:none;}
 .card:hover:not(.np){transform:translateY(-14px) scale(1.06);box-shadow:2px 18px 14px rgba(0,0,0,.55);z-index:20;}
-.card.np{opacity:.3;cursor:not-allowed;}
+.card.np{opacity:.4;cursor:not-allowed;filter:grayscale(0.5);}
 .cv3{font-family:'Bebas Neue',cursive;font-size:25px;color:#fff;line-height:1;text-shadow:1px 1px 0 rgba(0,0,0,.4);}
 .cc3{position:absolute;font-family:'Bebas Neue',cursive;font-size:10px;color:rgba(255,255,255,.8);line-height:1;}
 .cc3.tl{top:4px;left:5px;}
@@ -160,12 +171,15 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 .c-yellow{background:linear-gradient(150deg,#F7C520,#BF980E);}
 .c-yellow .cv3,.c-yellow .cc3{color:rgba(40,28,0,.9)!important;text-shadow:none!important;}
 .c-wild{background:conic-gradient(#E8372A 0 25%,#1E7FD8 25% 50%,#26B152 50% 75%,#F7C520 75%);border-color:rgba(255,255,255,.6);}
-.cb3{width:var(--cw);height:var(--ch);border-radius:var(--cr);background:linear-gradient(145deg,#B83228,#6E1C15);border:2.5px solid rgba(255,255,255,.2);box-shadow:2px 3px 0 rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',cursive;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.18);flex-shrink:0;}
-.gc{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:8px 16px 16px;}
+
+/* Game Controls */
+.game-controls{display:flex;gap:10px;justify-content:center;padding:10px 16px 16px;flex-shrink:0;}
 .buno{background:linear-gradient(135deg,#F7C520,#C49B10);color:#1A1000;font-size:16px;padding:10px 30px;letter-spacing:3px;box-shadow:0 4px 0 #8A6800;}
 .buno.fd{opacity:.3;}
 .bend{background:rgba(38,177,82,.12);color:#7EE8A2;border:1.5px solid rgba(38,177,82,.3);display:none;}
 .bend.show{display:inline-flex;}
+
+/* Modals */
 #ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);z-index:200;}
 .modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--s);border:1.5px solid var(--b2);border-radius:var(--rx);padding:26px 30px;z-index:201;box-shadow:0 20px 60px rgba(0,0,0,.8);text-align:center;min-width:280px;}
 .mh{font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--m);margin-bottom:16px;}
@@ -302,23 +316,43 @@ canvas#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.28;}
 <div class="screen" id="game">
   <div class="gn">
     <div class="gl">UNO</div>
-    <div class="sr2" id="scr"></div>
     <button class="btn btn-sm btn-danger" onclick="leaveGame()">Leave</button>
   </div>
   <div id="gs">Loading...</div>
-  <div id="board">
-    <div id="oe"></div>
-    <div class="cz">
-      <div class="pile"><div class="pl">Draw</div><div class="dp" id="dpile" onclick="onDraw()">UNO</div><div class="pc" id="dpcnt"></div></div>
-      <div class="cm2"><div id="di">↻</div><div id="cd"></div><div id="tt">—</div></div>
-      <div class="pile"><div class="pl">Discard</div><div class="dt" id="dtop"></div><div class="pc" id="dcnt"></div></div>
+  
+  <div class="table-container">
+    <!-- Opponents Top -->
+    <div class="table-top" id="opponents-area"></div>
+    
+    <!-- Center Area -->
+    <div class="table-center">
+      <div class="center-area">
+        <div class="pile-group">
+          <div class="pile-label">Draw</div>
+          <div class="draw-pile" id="dpile" onclick="onDraw()">UNO</div>
+        </div>
+        <div class="turn-indicator">
+          <div id="di">↻</div>
+          <div id="cd"></div>
+          <div id="tt">—</div>
+        </div>
+        <div class="pile-group">
+          <div class="pile-label">Discard</div>
+          <div class="discard-pile" id="dtop"></div>
+        </div>
+      </div>
     </div>
-    <div class="pz">
-      <div class="ph"><div class="phl">Your Hand</div><div id="pc"></div></div>
-      <div id="ph"></div>
+    
+    <!-- My Hand Bottom -->
+    <div class="table-bottom">
+      <div class="my-hand-area">
+        <div class="hand-label">Your Hand</div>
+        <div class="hand-container" id="ph"></div>
+      </div>
     </div>
   </div>
-  <div class="gc">
+  
+  <div class="game-controls">
     <button class="btn buno fd" id="unob" onclick="callUno()">UNO!</button>
     <button class="btn bend" id="endb" onclick="endTurn()">End Turn ✓</button>
   </div>
@@ -928,54 +962,82 @@ async function leaveGame(){if(!confirm('Leave the game?'))return;stopGameListene
 // RENDER
 function renderGame(){
   if(!GAME||!ROOM)return;
-  renderOpps();renderHand();renderCenter();renderScores();
+  renderOpponentsTable(); // Render opponents around table
+  renderMyHand(); // Render my hand at bottom
+  renderCenter(); // Render center piles
   const h=GAME.hands[MY_IDX]||[];
   const canUno = (h.length === 2);
   E('unob').classList.toggle('fd',!canUno);
 }
-function renderOpps(){
-  const el=E('oe');if(!el)return;el.innerHTML='';
-  const others=ROOM.players.map((_,i)=>i).filter(i=>i!==MY_IDX);if(!others.length)return;
-  const grid=document.createElement('div');
-  const cols=others.length<=2?others.length:others.length<=6?3:4;
-  grid.style.cssText='display:grid;grid-template-columns:repeat('+cols+',1fr);gap:6px;margin-bottom:8px;';
-  others.forEach(i=>{
-    const p=ROOM.players[i],cnt=(GAME.handCounts&&GAME.handCounts[i])||0,act=GAME.currentPlayer===i;
-    const div=document.createElement('div');div.className='oz'+(act?' at':'');
-    let backs='';const maxShow=ROOM.players.length>6?5:8;const show=Math.min(cnt,maxShow);for(let j=0;j<show;j++)backs+='<div class="cb3">UNO</div>';if(cnt>show)backs+='<div style="font-size:10px;color:var(--d);align-self:center;padding-left:4px;">+'+(cnt-show)+'</div>';
-    div.innerHTML='<div class="om"><div class="oav" style="background:'+p.color+'">'+p.initial+'</div><div class="onm">'+esc(p.name)+'</div><div class="ocnt">'+cnt+'</div><div class="ouno" style="display:'+(cnt===1?'block':'none')+'">UNO!</div></div><div class="oc">'+backs+'</div>';
-    grid.appendChild(div);
+
+// Render Opponents on Table
+function renderOpponentsTable(){
+  const el=E('opponents-area');
+  if(!el)return;
+  el.innerHTML='';
+  
+  const others = ROOM.players.map((_, i) => i).filter(i => i !== MY_IDX);
+  others.forEach(i => {
+    const p = ROOM.players[i];
+    const cnt = (GAME.handCounts && GAME.handCounts[i]) || 0;
+    const isActive = GAME.currentPlayer === i;
+    
+    const div = document.createElement('div');
+    div.className = 'player-slot' + (isActive ? ' active' : '');
+    
+    // Generate mini cards
+    let cardsHtml = '';
+    const showCount = Math.min(cnt, 6);
+    for(let j=0; j<showCount; j++){
+       cardsHtml += `<div class="card-mini" style="left: ${j*12}px; z-index: ${j};"></div>`;
+    }
+    
+    div.innerHTML = `
+      <div class="p-info">
+        <div class="p-avatar" style="background:${p.color}">${p.initial}</div>
+        <div class="p-name">${esc(p.name)}</div>
+      </div>
+      <div class="p-cards-count">${cnt} cards</div>
+      <div class="p-hand-preview">${cardsHtml}</div>
+    `;
+    el.appendChild(div);
   });
-  el.appendChild(grid);
 }
-function renderHand(){
-  const el=E('ph');if(!el)return;el.innerHTML='';
+
+// Render My Hand
+function renderMyHand(){
+  const el=E('ph');
+  if(!el)return;
+  el.innerHTML='';
   const hand=GAME.hands[MY_IDX]||[];
   const myTurn=GAME.currentPlayer===MY_IDX&&!GAME.gameOver&&!GAME.pendingWild;
+  
   hand.forEach((card,i)=>{
     const play=myTurn?(GAME.drawnPenalty?canPlayAfterPenalty(card):canPlay(card,MY_IDX)):false;
-    const div=document.createElement('div');div.className='card '+cardCls(card)+(play?'':' np');
-    const l=cardLbl(card);div.innerHTML='<span class="cc3 tl">'+l+'</span><span class="cv3">'+l+'</span><span class="cc3 br">'+l+'</span>';
+    const div=document.createElement('div');
+    div.className='card '+cardCls(card)+(play?'':' np');
+    const l=cardLbl(card);
+    div.innerHTML='<span class="cc3 tl">'+l+'</span><span class="cv3">'+l+'</span><span class="cc3 br">'+l+'</span>';
     if(play)div.onclick=(function(ci){return function(){playCard(ci);};})(i);
     el.appendChild(div);
   });
-  const pc=E('pc');if(pc)pc.textContent=hand.length+' card'+(hand.length!==1?'s':'');
 }
+
+// Render Center
 function renderCenter(){
   if(!GAME||!ROOM)return;
   const top=GAME.discard[GAME.discard.length-1];if(!top)return;
   const l=cardLbl(top);
-  const dt=E('dtop');if(dt){dt.innerHTML='<span class="dcc tl">'+l+'</span><span style="font-family:\'Bebas Neue\',cursive;font-size:26px;">'+l+'</span><span class="dcc br">'+l+'</span>';dt.style.background=top.c==='wild'?(CGRAD[GAME.activeColor]||'#222'):CGRAD[top.c];dt.style.color=(top.c==='yellow'||(top.c==='wild'&&GAME.activeColor==='yellow'))?'rgba(40,28,0,.9)':'rgba(255,255,255,.95)';}
+  const dt=E('dtop');
+  if(dt){
+    dt.innerHTML='<span class="dcc tl">'+l+'</span><span style="font-family:\'Bebas Neue\',cursive;font-size:26px;">'+l+'</span><span class="dcc br">'+l+'</span>';
+    dt.style.background=top.c==='wild'?(CGRAD[GAME.activeColor]||'#222'):CGRAD[top.c];
+    dt.style.color=(top.c==='yellow'||(top.c==='wild'&&GAME.activeColor==='yellow'))?'rgba(40,28,0,.9)':'rgba(255,255,255,.95)';
+  }
   const cd=E('cd');if(cd){cd.style.background=CHEX[GAME.activeColor]||'#555';cd.style.boxShadow='0 0 14px '+(CHEX[GAME.activeColor]||'#555')+'88';}
   const di=E('di');if(di)di.textContent=GAME.dir===1?'↻':'↺';
   const tt=E('tt');if(tt){const cp=ROOM.players[GAME.currentPlayer];tt.textContent=GAME.currentPlayer===MY_IDX?'Your Turn':(cp?cp.name:'...');}
-  const dpc=E('dpcnt');if(dpc)dpc.textContent=GAME.deck.length+' left';
-  const dsc=E('dcnt');if(dsc)dsc.textContent=GAME.discard.length+' played';
   const dp=E('dpile');if(dp){const can=GAME.currentPlayer===MY_IDX&&!GAME.gameOver&&!GAME.drawnThisTurn&&!GAME.pendingWild;dp.classList.toggle('nd',!can);if(GAME.drawStack>0&&GAME.currentPlayer===MY_IDX&&!GAME.drawnPenalty){dp.textContent='DRAW '+GAME.drawStack;dp.style.color='var(--gold)';dp.style.fontSize='12px';}else{dp.textContent='UNO';dp.style.color='';dp.style.fontSize='';}}
-}
-function renderScores(){
-  const el=E('scr');if(!el||!ROOM)return;el.innerHTML='';
-  ROOM.players.forEach((p,i)=>{const d=document.createElement('div');d.className='sp'+(GAME.currentPlayer===i?' act':'');const av=document.createElement('div');av.className='avatar';av.style.cssText='background:'+p.color+';width:20px;height:20px;font-size:9px;border:none;flex-shrink:0;';av.textContent=p.initial;d.innerHTML='<span class="sp-n">'+(i===MY_IDX?'You':esc(p.name))+'</span><span class="sp-p">'+((GAME.scores&&GAME.scores[i])||0)+'</span>';d.prepend(av);el.appendChild(d);});
 }
 
 // CHAT
