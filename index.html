@@ -775,7 +775,6 @@ async function playCard(idx){
 
   GAME.hands[MY_IDX].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;
   if(card.c!=='wild')GAME.activeColor=card.c;
-  else GAME.pendingWild=true;
   
   GAME.drawnThisTurn=false;
   
@@ -788,375 +787,289 @@ async function playCard(idx){
           GAME.unoVulnerable = -1;
       } else {
           GAME.unoVulnerable = MY_IDX;
-          // 2.5 second grace period
           setTimeout(() => autoPenaltyCheck(MY_IDX), 2500);
       }
-  } else if (GAME.hands[MY_IDX].length === 0) {
-      // WINNER
-      GAME.gameOver = true;
-      let pts = 0;
-      ROOM.players.forEach((p, i) => {
-          if (i !== MY_IDX) {
-              (GAME.hands[i] || []).forEach(c => pts += cardPts(c));
-          }
-      });
-      GAME.lastWinPts = pts;
-      GAME.scores[MY_IDX] = (GAME.scores[MY_IDX] || 0) + pts;
   } else {
-      // Normal turn progression (Hand count > 1)
-      let step = 1;
-      if(card.v === 'skip') step = 2;
-      if(card.v === 'reverse' && ROOM.players.length === 2) step = 2;
+      GAME.unoVulnerable = -1;
+      GAME.unoCalledBy = -1;
+  }
+
+  E('endb').classList.remove('show');
+  sysMsg(ME.name+' played '+cardLbl(card)+(card.c!=='wild'?' ('+card.c+')':''));
+  if(checkWin(MY_IDX))return;
+  if(card.c==='wild'){GAME.pendingWild=true;renderGame();openColorModal();return;}
+  applyEffect(card,MY_IDX);advance();await pushGame();
+}
+
+// EFFECT
+function applyEffect(card,who){
+  const n=ROOM.players.length,next=(who+GAME.dir+n)%n,nm=ROOM.players[next]?ROOM.players[next].name:'?';
+  if(card.v==='skip'){sysMsg(nm+' is skipped!');advance();}
+  else if(card.v==='reverse'){GAME.dir*=-1;sysMsg('Direction reversed! ⇄');if(n===2)advance();}
+  else if(card.v==='draw2'){GAME.drawStack=(GAME.drawStack||0)+2;GAME.drawType='draw2';GAME.drawnPenalty=false;sysMsg(nm+': counter with +2 OR draw '+GAME.drawStack+'!');}
+  else if(card.v==='wild4'){GAME.drawStack=(GAME.drawStack||0)+4;GAME.drawType='wild4';GAME.drawnPenalty=false;sysMsg(nm+': counter with +4 OR draw '+GAME.drawStack+'!');}
+}
+function advance(){GAME.currentPlayer=(GAME.currentPlayer+GAME.dir+ROOM.players.length)%ROOM.players.length;}
+
+// WIN
+function checkWin(who){
+  if(GAME.hands[who].length===0){GAME.gameOver=true;let pts=0;GAME.hands.forEach((h,i)=>{if(i!==who)h.forEach(c=>pts+=cardPts(c));});GAME.scores[who]=(GAME.scores[who]||0)+pts;GAME.lastWinPts=pts;GAME.handCounts=GAME.hands.map(h=>h.length);pushGame();return true;}return false;
+}
+function showWin(who,pts){
+  const p=ROOM.players[who];if(!p)return;const isMe=who===MY_IDX;
+  E('we').textContent=isMe?'🎉':'😢';E('wt').textContent=isMe?'YOU WIN!':esc(p.name)+' WINS!';E('wsub').textContent=isMe?'Flawless victory!':'Better luck next time!';E('wp').textContent='+'+pts+' pts';E('ws').classList.add('show');sysMsg(p.name+' wins! 🏆 +'+pts+' pts');
+}
+
+// DRAW
+async function onDraw(){
+  if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX||GAME.drawnThisTurn||GAME.pendingWild)return;
+  
+  if(GAME.drawStack>0&&!GAME.drawnPenalty){
+    const total=GAME.drawStack;
+    drawLocal(MY_IDX,total);
+    GAME.drawnPenalty=true; 
+    GAME.drawnThisTurn=true;
+    sysMsg(ME.name+' drew '+total+' cards (penalty).');
+    
+    const hasMatch=GAME.hands[MY_IDX].some(c=>canPlayAfterPenalty(c));
+    
+    if(hasMatch){
+      await pushGame();
+      gst('Drew '+total+' — play a matching card or end turn.');
+      E('endb').classList.add('show');
+    } else {
+      GAME.drawStack=0; 
+      GAME.drawType=null; 
+      GAME.drawnPenalty=false; 
+      GAME.drawnThisTurn=false;
       
-      GAME.currentPlayer = (MY_IDX + (step * GAME.dir) + ROOM.players.length) % ROOM.players.length;
+      gst('Drew '+total+' — no match. Card kept, turn passed.');
+      advance();
+      await pushGame();
+    }
+    return;
   }
   
-  // Reset turn flags
-  GAME.drawnThisTurn = false;
+  drawLocal(MY_IDX,1);
+  const drew=GAME.hands[MY_IDX][GAME.hands[MY_IDX].length-1];
+  sysMsg(ME.name+' drew a card.');
   
-  await pushGame();
-  renderGame();
-}
-
-// ON DRAW (Standard: No Auto-Play)
-async function onDraw() {
-    if (!GAME || GAME.gameOver || GAME.currentPlayer !== MY_IDX) return;
-    
-    // Prevent drawing if already drew this turn (and no stack penalty active)
-    if (GAME.drawnThisTurn && GAME.drawStack === 0) {
-        toast("You already drew a card! Play it or end your turn.");
-        return;
-    }
-
-    // 1. Determine how many cards to draw
-    let count = 1;
-    if (GAME.drawStack > 0) {
-        count = GAME.drawStack;
-        // Reset stack as we are about to draw the penalty
-        GAME.drawStack = 0;
-        GAME.drawType = null;
-        GAME.drawnPenalty = true; 
-    }
-
-    // 2. Draw cards
-    drawLocal(MY_IDX, count);
-    GAME.drawnThisTurn = true;
-
-    // 3. Update State & UI
-    // We do NOT check if the card matches. It just sits in the hand.
+  if(canPlay(drew,MY_IDX)){
+    GAME.drawnThisTurn=true;
     await pushGame();
-    renderGame();
-}
-
-// END TURN
-async function endTurn() {
-    if (!GAME || GAME.gameOver || GAME.currentPlayer !== MY_IDX) return;
-    
-    // Validation: Must have drawn or played to end turn (usually just drawn is enough if no play)
-    if (!GAME.drawnThisTurn) {
-        toast("You must play a card or draw before ending your turn!");
-        return;
-    }
-
-    // Advance turn
-    // Note: If you just drew a penalty stack, the turn passes automatically.
-    let step = 1;
-    GAME.currentPlayer = (MY_IDX + (step * GAME.dir) + ROOM.players.length) % ROOM.players.length;
-    
-    // Reset flags
-    GAME.drawnThisTurn = false;
-    GAME.drawnPenalty = false;
-
+    gst('Drew a matching card — playing it automatically...');
+    setTimeout(async()=>{
+      if(!GAME||GAME.gameOver||GAME.currentPlayer!==MY_IDX)return;
+      await playCard(GAME.hands[MY_IDX].length-1);
+    },700);
+  } else {
+    advance();
     await pushGame();
-    renderGame();
+    gst('No match — card kept in hand, turn passed.');
+  }
 }
+async function endTurn(){if(!GAME||GAME.currentPlayer!==MY_IDX||GAME.gameOver)return;GAME.drawnThisTurn=false;GAME.drawStack=0;GAME.drawType=null;GAME.drawnPenalty=false;E('endb').classList.remove('show');advance();await pushGame();}
 
-// PICK COLOR
-async function pickColor(c){
-    if(!GAME||GAME.gameOver)return;
-    GAME.activeColor=c;
-    GAME.pendingWild=false;
-    
-    // If it was a +4, handle stack
-    if(GAME.discard[GAME.discard.length-1].v==='wild4'){
-        GAME.drawStack=4;
-        GAME.drawType='wild4';
+// UNO
+async function callUno(){
+  if (!GAME || GAME.gameOver) return;
+  if (GAME.hands[MY_IDX].length === 2) {
+    GAME.unoCalledBy = MY_IDX; 
+    shout('UNO!');
+    sysMsg(ME.name + ' is ready to go out!');
+    const updates = {};
+    updates['state/unoCalledBy'] = MY_IDX;
+    try { await DB.ref('/games/' + ROOM.id).update(updates); } catch(e) {}
+    return;
+  }
+  if (GAME.hands[MY_IDX].length === 1) {
+    if (GAME.unoVulnerable === MY_IDX) {
+        toast("Too late! You must say UNO before playing.");
     }
-    
-    // Advance turn after wild pick
-    GAME.currentPlayer = (MY_IDX + GAME.dir + ROOM.players.length) % ROOM.players.length;
-    
-    closeModals();
-    await pushGame();
-    renderGame();
+  }
 }
 
-// CALL UNO
-function callUno(){
-    if(!GAME||GAME.currentPlayer!==MY_IDX)return;
-    // Can only call UNO if you have 2 cards (about to play 1) or 1 card (just played 1 and forgot)
-    // The logic sets vulnerable when you have 1 card.
-    if(GAME.unoVulnerable===MY_IDX){
-        GAME.unoCalledBy=MY_IDX;
-        GAME.unoVulnerable=-1; // Saved!
-        shout("UNO!");
-        sysMsg(ME.name+" called UNO!");
-        pushGame(); // Sync the safety
-    } else if (GAME.hands[MY_IDX].length === 2) {
-        // Pre-emptive UNO call
-        GAME.unoCalledBy = MY_IDX;
-        shout("UNO!");
-        sysMsg(ME.name+" called UNO!");
-        pushGame();
-    } else {
-        toast("Not the right time to say UNO!");
+// COLOR
+function openColorModal(){E('ov').style.display='block';E('colm').style.display='block';}
+async function pickColor(col){closeModals();GAME.activeColor=col;GAME.pendingWild=false;const top=GAME.discard[GAME.discard.length-1];sysMsg(ME.name+' chose '+col.toUpperCase());applyEffect(top,MY_IDX);advance();await pushGame();}
+
+// CPU
+function cpuBest(who){const cnt={red:0,blue:0,green:0,yellow:0};GAME.hands[who].forEach(c=>{if(c.c!=='wild')cnt[c.c]++;});return COLORS.reduce((a,b)=>cnt[a]>=cnt[b]?a:b);}
+function cpuPri(c){if(c.v==='wild4')return 9;if(c.v==='draw2')return 8;if(c.v==='skip')return 7;if(c.v==='reverse')return 6;if(c.v==='wild')return 5;return parseInt(c.v)||0;}
+async function runCPU(who,seq){
+  if(!GAME||!ROOM||GAME.gameOver||GAME.currentPlayer!==who)return;
+  const p=ROOM.players[who];if(!p||!p.isBot)return;
+  if(GAME.drawStack>0&&!GAME.drawnPenalty){
+    const ct=GAME.drawType,counter=GAME.hands[who].map((c,i)=>({c,i})).filter(({c})=>c.v===ct);
+    if(counter.length){await cpuPlay(who,counter[0].i);return;}
+    drawLocal(who,GAME.drawStack);GAME.drawnPenalty=true;sysMsg(p.name+' draws '+GAME.drawStack+' (penalty).');
+    const match=GAME.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlayAfterPenalty(c));
+    if(match.length){match.sort((a,b)=>cpuPri(b.c)-cpuPri(a.c));await cpuPlay(who,match[0].i);}
+    else{
+      GAME.drawStack=0; GAME.drawType=null; GAME.drawnPenalty=false; 
+      sysMsg(p.name+' no match — passes.');advance();await pushGame();
     }
+    return;
+  }
+  const pl=GAME.hands[who].map((c,i)=>({c,i})).filter(({c})=>canPlay(c,who));
+  if(!pl.length){drawLocal(who,1);const d=GAME.hands[who][GAME.hands[who].length-1];if(canPlay(d,who))await cpuPlay(who,GAME.hands[who].length-1);else{sysMsg(p.name+' draws and passes.');advance();await pushGame();}return;}
+  
+  if (GAME.hands[who].length === 2) {
+      GAME.unoCalledBy = who;
+      shout('UNO!');
+      sysMsg(p.name + ' calls UNO!');
+  }
+  
+  pl.sort((a,b)=>cpuPri(b.c)-cpuPri(a.c));
+  await cpuPlay(who, pl[0].i);
+}
+async function cpuPlay(who,idx){
+  if(!GAME||!ROOM||GAME.gameOver)return;
+  
+  // FIX: Clear stack if penalty was drawn
+  if (GAME.drawnPenalty) {
+      GAME.drawStack = 0;
+      GAME.drawType = null;
+      GAME.drawnPenalty = false;
+  }
+
+  const card=GAME.hands[who][idx];GAME.hands[who].splice(idx,1);GAME.discard.push(card);GAME.activeValue=card.v;if(card.c!=='wild')GAME.activeColor=card.c;
+  
+  GAME.drawnPenalty=false;
+  
+  GAME.handCounts=GAME.hands.map(h=>h.length);
+  const p=ROOM.players[who];sysMsg(p.name+' played '+cardLbl(card)+(card.c!=='wild'?' ('+card.c+')':''));
+  
+  if (GAME.hands[who].length === 1) {
+      if (GAME.unoCalledBy !== who) {
+          GAME.unoVulnerable = who;
+          setTimeout(() => autoPenaltyCheck(who), 2500);
+      } else {
+          GAME.unoCalledBy = -1;
+      }
+  }
+
+  if(checkWin(who))return;
+  if(card.c==='wild'){GAME.activeColor=cpuBest(who);sysMsg(p.name+' chose '+GAME.activeColor.toUpperCase());applyEffect(card,who);advance();await pushGame();return;}
+  applyEffect(card,who);advance();await pushGame();
 }
 
-// RENDER GAME
+// PLAY AGAIN / LEAVE
+async function playAgain(){E('ws').classList.remove('show');stopGameListener();await dbDel('/games/'+ROOM.id);await startGame();}
+async function backToLobby(){E('ws').classList.remove('show');stopGameListener();if(ROOM){await dbDel('/games/'+ROOM.id);await dbDel('/rooms/'+ROOM.id);}GAME=null;cleanupRoom();E('cf').classList.remove('v');loadRooms();goTo('lobby');}
+async function leaveGame(){if(!confirm('Leave the game?'))return;stopGameListener();if(ROOM){await dbDel('/games/'+ROOM.id);await dbDel('/rooms/'+ROOM.id);}GAME=null;cleanupRoom();E('ws').classList.remove('show');E('cf').classList.remove('v');E('cp').classList.remove('o');loadRooms();goTo('lobby');}
+
+// RENDER
 function renderGame(){
-    if(!GAME)return;
-    
-    // Render Opponents
-    const oppArea=E('opponents-area');
-    oppArea.innerHTML='';
-    ROOM.players.forEach((p,i)=>{
-        if(i===MY_IDX)return;
-        const div=document.createElement('div');
-        const isActive=i===GAME.currentPlayer;
-        div.className='player-slot'+(isActive?' active':'');
-        
-        let cardsHtml='';
-        const count=GAME.handCounts[i]||0;
-        for(let k=0;k<Math.min(count,7);k++){
-            cardsHtml+='<div class="card-mini" style="left:'+(k*6)+'px;top:'+(k*2)+'px;"></div>';
-        }
-        if(count>7)cardsHtml+='<div class="card-mini" style="left:42px;top:10px;background:var(--s);display:flex;align-items:center;justify-content:center;font-size:9px;">+'+(count-7)+'</div>';
-        
-        div.innerHTML='<div class="p-info"><div class="p-avatar" style="background:'+p.color+'">'+p.initial+'</div><div class="p-name">'+esc(p.name)+'</div></div><div class="p-cards-count">'+count+' Cards</div><div class="p-hand-preview">'+cardsHtml+'</div>';
-        oppArea.appendChild(div);
-    });
+  if(!GAME||!ROOM)return;
+  renderOpponentsTable(); // Render opponents around table
+  renderMyHand(); // Render my hand at bottom
+  renderCenter(); // Render center piles
+  const h=GAME.hands[MY_IDX]||[];
+  const canUno = (h.length === 2);
+  E('unob').classList.toggle('fd',!canUno);
+}
 
-    // Render Center
-    const top=GAME.discard[GAME.discard.length-1];
-    if(top){
-        const d=E('dtop');
-        d.className='discard-pile c-wild';
-        if(top.c!=='wild')d.className='discard-pile c-'+top.c;
-        d.innerHTML='<div class="dcc tl">'+cardLbl(top)+'</div><div class="cv3">'+cardLbl(top)+'</div><div class="dcc br">'+cardLbl(top)+'</div>';
-        
-        const cd=E('cd');
-        cd.style.background=CHEX[GAME.activeColor]||'#fff';
+// Render Opponents on Table
+function renderOpponentsTable(){
+  const el=E('opponents-area');
+  if(!el)return;
+  el.innerHTML='';
+  
+  const others = ROOM.players.map((_, i) => i).filter(i => i !== MY_IDX);
+  others.forEach(i => {
+    const p = ROOM.players[i];
+    const cnt = (GAME.handCounts && GAME.handCounts[i]) || 0;
+    const isActive = GAME.currentPlayer === i;
+    
+    const div = document.createElement('div');
+    div.className = 'player-slot' + (isActive ? ' active' : '');
+    
+    // Generate mini cards
+    let cardsHtml = '';
+    const showCount = Math.min(cnt, 6);
+    for(let j=0; j<showCount; j++){
+       cardsHtml += `<div class="card-mini" style="left: ${j*12}px; z-index: ${j};"></div>`;
     }
     
-    // Render Turn Indicator
-    const cp=ROOM.players[GAME.currentPlayer];
-    E('di').textContent=cp?(cp.id===MY_PID?'👉':'⏳'):'—';
-    E('tt').textContent=cp?cp.name+'\'s Turn':'—';
-    E('dpile').className=GAME.drawStack>0?'draw-pile nd':'draw-pile';
-    
-    // Render My Hand
-    const ph=E('ph');
-    ph.innerHTML='';
-    const myHand=GAME.hands[MY_IDX]||[];
-    
-    const isMyTurn=GAME.currentPlayer===MY_IDX;
-    const playable=isMyTurn?myHand.map(c=>canPlay(c,MY_IDX)):[];
-    
-    myHand.forEach((c,i)=>{
-        const div=document.createElement('div');
-        div.className='card '+cardCls(c);
-        
-        // Disable click if not turn or not playable
-        if(isMyTurn && playable[i]){
-            div.onclick=()=>playCard(i);
-        } else {
-            div.classList.add('np');
-            div.style.cursor='default';
-        }
-        
-        div.innerHTML='<div class="cc3 tl">'+cardLbl(c)+'</div><div class="cv3">'+cardLbl(c)+'</div><div class="cc3 br">'+cardLbl(c)+'</div>';
-        ph.appendChild(div);
-    });
-    
-    // Controls
-    const unob=E('unob');
-    // Show UNO button if you have 2 cards (can call before play) or 1 card (save self)
-    const handSize = myHand.length;
-    if(handSize <= 2) {
-        unob.classList.remove('fd');
-        unob.onclick=callUno;
-    } else {
-        unob.classList.add('fd');
-        unob.onclick=null;
-    }
-    
-    const endb=E('endb');
-    // Show End Turn button if we have drawn a card (and no stack pending that forces counter)
-    if(isMyTurn && GAME.drawnThisTurn)endb.classList.add('show'); else endb.classList.remove('show');
-    
-    // Wild Modal
-    if(GAME.pendingWild&&GAME.currentPlayer===MY_IDX){
-        E('ov').style.display='block';
-        E('colm').style.display='block';
-    }
+    div.innerHTML = `
+      <div class="p-info">
+        <div class="p-avatar" style="background:${p.color}">${p.initial}</div>
+        <div class="p-name">${esc(p.name)}</div>
+      </div>
+      <div class="p-cards-count">${cnt} cards</div>
+      <div class="p-hand-preview">${cardsHtml}</div>
+    `;
+    el.appendChild(div);
+  });
 }
 
-// CPU LOGIC
-async function runCPU(idx,seq){
-    if(!GAME||GAME.gameOver||GAME.currentPlayer!==idx||GAME.seq!==seq)return;
-    const hand=GAME.hands[idx]||[];
-    
-    // Delay for realism
-    await new Promise(r=>setTimeout(r,1200));
-    
-    // 1. Try to Play
-    // Prioritize action cards or matching colors
-    const matchIdx=hand.findIndex(c=>canPlay(c,idx));
-    
-    if(matchIdx!==-1){
-        const card=hand[matchIdx];
-        
-        // CPU UNO Logic (90% chance to remember)
-        if(hand.length===2 && Math.random()>0.1){
-            GAME.unoCalledBy=idx;
-            GAME.unoVulnerable = -1; // Safe
-        }
-        
-        // Execute Play
-        hand.splice(matchIdx,1);
-        GAME.discard.push(card);
-        GAME.activeValue=card.v;
-        if(card.c!=='wild')GAME.activeColor=card.c;
-        else GAME.pendingWild=true;
-        
-        // Update UNO state
-        if(hand.length===1 && GAME.unoCalledBy !== idx)GAME.unoVulnerable=idx;
-        else if(hand.length===0){
-            GAME.gameOver=true;
-            let pts=0;
-            ROOM.players.forEach((p,i)=>{if(i!==idx)(GAME.hands[i]||[]).forEach(c=>pts+=cardPts(c));});
-            GAME.lastWinPts=pts;
-            GAME.scores[idx]=(GAME.scores[idx]||0)+pts;
-        }
-        
-        // CPU Wild Choice
-        if(card.c==='wild'){
-            const colors=['red','blue','green','yellow'];
-            // Pick color with most count
-            const counts={red:0,blue:0,green:0,yellow:0};
-            hand.forEach(c=>{if(c.c!=='wild')counts[c.c]++;});
-            const best=Object.keys(counts).reduce((a,b)=>counts[a]>counts[b]?a:b);
-            GAME.activeColor=best;
-            GAME.pendingWild=false; // Resolved immediately
-            if(card.v==='wild4'){GAME.drawStack=4;GAME.drawType='wild4';}
-            
-            // Advance turn after wild choice
-            let step=1;
-            if(card.v==='skip')step=2;
-            if(card.v==='reverse'&&ROOM.players.length===2)step=2;
-            GAME.currentPlayer=(idx+(step*GAME.dir)+ROOM.players.length)%ROOM.players.length;
-        } else {
-            // Advance Turn Normal
-            let step=1;
-            if(card.v==='skip')step=2;
-            if(card.v==='reverse'&&ROOM.players.length===2)step=2;
-            GAME.currentPlayer=(idx+(step*GAME.dir)+ROOM.players.length)%ROOM.players.length;
-        }
-        
-    } else {
-        // 2. Draw
-        let count=1;
-        if(GAME.drawStack>0){
-            count=GAME.drawStack;
-            GAME.drawStack=0;
-            GAME.drawType=null;
-            GAME.drawnPenalty=true;
-        }
-        
-        drawLocal(idx,count);
-        GAME.drawnThisTurn=true;
-        
-        // CPU plays drawn card if match (Standard CPU behavior)
-        if(count===1 && !GAME.drawnPenalty){
-            const newCard=GAME.hands[idx][GAME.hands[idx].length-1];
-            if(newCard && newCard.c!=='wild' && canPlay(newCard,idx)){
-                // Auto Play for CPU
-                GAME.hands[idx].pop();
-                GAME.discard.push(newCard);
-                GAME.activeValue=newCard.v;
-                GAME.activeColor=newCard.c;
-                
-                if(GAME.hands[idx].length===1 && GAME.unoCalledBy!==idx)GAME.unoVulnerable=idx;
-                else if(GAME.hands[idx].length===0){
-                    GAME.gameOver=true;
-                    let pts=0;
-                    ROOM.players.forEach((p,i)=>{if(i!==idx)(GAME.hands[i]||[]).forEach(c=>pts+=cardPts(c));});
-                    GAME.lastWinPts=pts;
-                    GAME.scores[idx]=(GAME.scores[idx]||0)+pts;
-                }
-                
-                let step=1;
-                if(newCard.v==='skip')step=2;
-                if(newCard.v==='reverse'&&ROOM.players.length===2)step=2;
-                GAME.currentPlayer=(idx+(step*GAME.dir)+ROOM.players.length)%ROOM.players.length;
-                GAME.drawnThisTurn=false;
-            } else {
-                // Pass turn
-                GAME.currentPlayer=(idx+GAME.dir+ROOM.players.length)%ROOM.players.length;
-                GAME.drawnThisTurn=false;
-            }
-        } else {
-            // Drew stack or penalty, pass
-            GAME.currentPlayer=(idx+GAME.dir+ROOM.players.length)%ROOM.players.length;
-            GAME.drawnThisTurn=false;
-        }
-    }
-    
-    pushGame();
+// Render My Hand
+function renderMyHand(){
+  const el=E('ph');
+  if(!el)return;
+  el.innerHTML='';
+  const hand=GAME.hands[MY_IDX]||[];
+  const myTurn=GAME.currentPlayer===MY_IDX&&!GAME.gameOver&&!GAME.pendingWild;
+  
+  hand.forEach((card,i)=>{
+    const play=myTurn?(GAME.drawnPenalty?canPlayAfterPenalty(card):canPlay(card,MY_IDX)):false;
+    const div=document.createElement('div');
+    div.className='card '+cardCls(card)+(play?'':' np');
+    const l=cardLbl(card);
+    div.innerHTML='<span class="cc3 tl">'+l+'</span><span class="cv3">'+l+'</span><span class="cc3 br">'+l+'</span>';
+    if(play)div.onclick=(function(ci){return function(){playCard(ci);};})(i);
+    el.appendChild(div);
+  });
 }
 
-// WIN SCREEN
-function showWin(wIdx,pts){
-    const p=ROOM.players[wIdx];
-    E('ws').classList.add('show');
-    E('we').textContent=p.id===MY_PID?'🎉':'😔';
-    E('wt').textContent=p.id===MY_PID?'VICTORY!':'DEFEAT';
-    E('wp').textContent='+'+pts+' Points';
-    E('wsub').textContent=p.name+' won the game!';
+// Render Center
+function renderCenter(){
+  if(!GAME||!ROOM)return;
+  const top=GAME.discard[GAME.discard.length-1];if(!top)return;
+  const l=cardLbl(top);
+  const dt=E('dtop');
+  if(dt){
+    dt.innerHTML='<span class="dcc tl">'+l+'</span><span style="font-family:\'Bebas Neue\',cursive;font-size:26px;">'+l+'</span><span class="dcc br">'+l+'</span>';
+    dt.style.background=top.c==='wild'?(CGRAD[GAME.activeColor]||'#222'):CGRAD[top.c];
+    dt.style.color=(top.c==='yellow'||(top.c==='wild'&&GAME.activeColor==='yellow'))?'rgba(40,28,0,.9)':'rgba(255,255,255,.95)';
+  }
+  const cd=E('cd');if(cd){cd.style.background=CHEX[GAME.activeColor]||'#555';cd.style.boxShadow='0 0 14px '+(CHEX[GAME.activeColor]||'#555')+'88';}
+  const di=E('di');if(di)di.textContent=GAME.dir===1?'↻':'↺';
+  const tt=E('tt');if(tt){const cp=ROOM.players[GAME.currentPlayer];tt.textContent=GAME.currentPlayer===MY_IDX?'Your Turn':(cp?cp.name:'...');}
+  const dp=E('dpile');if(dp){const can=GAME.currentPlayer===MY_IDX&&!GAME.gameOver&&!GAME.drawnThisTurn&&!GAME.pendingWild;dp.classList.toggle('nd',!can);if(GAME.drawStack>0&&GAME.currentPlayer===MY_IDX&&!GAME.drawnPenalty){dp.textContent='DRAW '+GAME.drawStack;dp.style.color='var(--gold)';dp.style.fontSize='12px';}else{dp.textContent='UNO';dp.style.color='';dp.style.fontSize='';}}
 }
 
-// PLAY AGAIN
-async function playAgain(){
-    E('ws').classList.remove('show');
-    if(imHost())await startGame();
+// CHAT
+let _co=false,_ur=0;
+function toggleChat(){_co=!_co;E('cp').classList.toggle('o',_co);if(_co){_ur=0;E('cbg').style.display='none';}}
+function sysMsg(t){const el=E('chatmsgs');const d=document.createElement('div');d.className='cmsg sys';d.innerHTML='<span class="cmt">'+esc(t)+'</span>';el.appendChild(d);el.scrollTop=el.scrollHeight;if(!_co){_ur++;const b=E('cbg');b.textContent=_ur>9?'9+':_ur;b.style.display='flex';}}
+function sendChat(){const inp=E('ci');const txt=(inp.value||'').trim();if(!txt||!ME.name)return;inp.value='';const el=E('chatmsgs');const d=document.createElement('div');d.className='cmsg';const p=ROOM?ROOM.players.find(x=>x.name===ME.name):null;d.innerHTML='<span class="cmn" style="color:'+(p?p.color:'#fff')+'">'+esc(ME.name)+':</span><span class="cmt">'+esc(txt)+'</span>';el.appendChild(d);el.scrollTop=el.scrollHeight;if(ROOM&&Math.random()<.35){const bots=ROOM.players.filter(p=>p.isBot);if(bots.length){const r=['😀GG!','Nice!','Watch out!','UNO soon','Feeling lucky?'];setTimeout(()=>{const d2=document.createElement('div');d2.className='cmsg';const b=bots[0|Math.random()*bots.length];d2.innerHTML='<span class="cmn" style="color:'+b.color+'">'+esc(b.name)+':</span><span class="cmt">'+esc(r[0|Math.random()*r.length])+'</span>';E('chatmsgs').appendChild(d2);E('chatmsgs').scrollTop=E('chatmsgs').scrollHeight;},1000+Math.random()*700);}}}
+
+// SESSION RESTORE
+async function restoreSession(){
+  const name=SS('name'),color=SS('color'),initial=SS('initial'),roomId=SS('roomId'),savedPid=SS('myPid'),savedIdx=SS('myIdx');
+  if(!name){goTo('splash');return;}
+  ME.name=name;ME.color=color||AVC[0];ME.initial=initial||name.charAt(0).toUpperCase();
+  MY_PID=savedPid;MY_IDX=typeof savedIdx==='number'?savedIdx:0;updateNavUI();
+  if(!roomId){loadRooms();goTo('lobby');return;}
+  try{
+    const r=await dbGet('/rooms/'+roomId);
+    if(!r){SS('roomId',null);loadRooms();goTo('lobby');return;}
+    ROOM={...r,players:toArr(r.players)};
+    const me=ROOM.players.find(p=>p.id===MY_PID);
+    if(!me){SS('roomId',null);loadRooms();goTo('lobby');return;}
+    MY_IDX=ROOM.players.indexOf(me);
+    if(r.status==='playing'){stopLobby();enterGame();}
+    else{stopLobby();listenRoom(roomId);addBots(roomId);renderRoomLobby();goTo('room');}
+  }catch(e){SS('roomId',null);loadRooms();goTo('lobby');}
 }
 
-function backToLobby() {
-    E('ws').classList.remove('show');
-    leaveGame();
-}
-
-// LEAVE GAME
-async function leaveGame(){
-    stopGameListener();
-    if(imHost()){await dbDel('/rooms/'+ROOM.id);await dbDel('/games/'+ROOM.id);}
-    else{await dbDel('/rooms/'+ROOM.id+'/players/'+MY_PID);}
-    cleanupRoom();loadRooms();goTo('lobby');
-}
-
-// CHAT & UTILS
-function toggleChat(){E('cp').classList.toggle('o');E('cf').classList.toggle('v');}
-async function sendChat(){
-    const i=E('ci'),v=i.value.trim();if(!v)return;
-    await dbUpd('/rooms/'+ROOM.id+'/chat',{[Date.now()]:{n:ME.name,m:v,t:Date.now()}});
-    i.value='';
-}
-function sysMsg(m){const d=document.createElement('div');d.className='cmsg sys';d.innerHTML='<span class="cmt">'+esc(m)+'</span>';E('chatmsgs').appendChild(d);E('chatmsgs').scrollTop=E('chatmsgs').scrollHeight;}
-
-// Init
-if(SS('name')){ME.name=SS('name');ME.color=SS('color');ME.initial=SS('initial');E('ni').value=ME.name;updateNavUI();}
-if(SS('roomId')){joinRoomById(SS('roomId'));}
+// INIT
+E('ni').addEventListener('keydown',e=>{if(e.key==='Enter')goToLobby();});
+const _ur2=new URLSearchParams(location.search).get('room');
+if(_ur2){window.addEventListener('load',()=>{setTimeout(()=>{if(E('lobby').classList.contains('active')){E('jci').value=_ur2;showJoinModal();}},400);});}
+restoreSession();
 </script>
 </body>
 </html>
